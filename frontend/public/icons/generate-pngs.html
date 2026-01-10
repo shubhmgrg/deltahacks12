@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Plane PNG Icons</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1e293b;
+            color: white;
+        }
+        .container {
+            background: #334155;
+            padding: 30px;
+            border-radius: 12px;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+        button.secondary {
+            background: #8b5cf6;
+        }
+        button.secondary:hover {
+            background: #7c3aed;
+        }
+        #preview {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        .preview-item {
+            text-align: center;
+        }
+        .preview-item img {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            display: block;
+            margin: 10px auto;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background: #1e293b;
+            border-radius: 4px;
+            min-height: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✈️ Plane Icon Generator</h1>
+        <p>This utility generates PNG icons from SVG for use in Mapbox GL JS.</p>
+        
+        <div id="preview"></div>
+        
+        <div>
+            <button onclick="generateLeader()">Generate Leader Plane (PNG)</button>
+            <button class="secondary" onclick="generateFollower()">Generate Follower Plane (PNG)</button>
+            <button onclick="generateBoth()">Generate Both</button>
+        </div>
+        
+        <div class="status" id="status">Ready to generate icons...</div>
+    </div>
+
+    <script>
+        const leaderSVG = `<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="leaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="128" cy="128" rx="8" ry="60" fill="url(#leaderGrad)" filter="url(#glow)"/>
+  <ellipse cx="128" cy="128" rx="45" ry="12" fill="url(#leaderGrad)" opacity="0.9"/>
+  <path d="M 128 68 L 115 85 L 128 85 Z" fill="url(#leaderGrad)" opacity="0.9"/>
+  <ellipse cx="128" cy="88" rx="5" ry="15" fill="#818cf8" opacity="0.6"/>
+  <circle cx="100" cy="125" r="4" fill="#1e293b"/>
+  <circle cx="156" cy="125" r="4" fill="#1e293b"/>
+</svg>`;
+
+        const followerSVG = `<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="followerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow2">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="128" cy="128" rx="7" ry="55" fill="url(#followerGrad)" filter="url(#glow2)"/>
+  <ellipse cx="128" cy="128" rx="40" ry="11" fill="url(#followerGrad)" opacity="0.9"/>
+  <path d="M 128 72 L 117 86 L 128 86 Z" fill="url(#followerGrad)" opacity="0.9"/>
+  <ellipse cx="128" cy="92" rx="4" ry="14" fill="#a78bfa" opacity="0.6"/>
+  <circle cx="100" cy="126" r="3.5" fill="#1e293b"/>
+  <circle cx="156" cy="126" r="3.5" fill="#1e293b"/>
+</svg>`;
+
+        function svgToPng(svgString, filename) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(svgBlob);
+                
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 256;
+                    canvas.height = 256;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    
+                    canvas.toBlob((blob) => {
+                        const downloadUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = downloadUrl;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(downloadUrl);
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    }, 'image/png');
+                };
+                
+                img.onerror = reject;
+                img.src = url;
+            });
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('status').textContent = msg;
+        }
+
+        function updatePreview() {
+            const previewDiv = document.getElementById('preview');
+            previewDiv.innerHTML = `
+                <div class="preview-item">
+                    <h3>Leader</h3>
+                    <img src="data:image/svg+xml;base64,${btoa(leaderSVG)}" width="128" height="128" alt="Leader">
+                </div>
+                <div class="preview-item">
+                    <h3>Follower</h3>
+                    <img src="data:image/svg+xml;base64,${btoa(followerSVG)}" width="128" height="128" alt="Follower">
+                </div>
+            `;
+        }
+
+        async function generateLeader() {
+            updateStatus('Generating leader plane icon...');
+            try {
+                await svgToPng(leaderSVG, 'plane_leader.png');
+                updateStatus('✓ Leader plane icon downloaded! Save it to /public/icons/plane_leader.png');
+            } catch (e) {
+                updateStatus('✗ Error: ' + e.message);
+            }
+        }
+
+        async function generateFollower() {
+            updateStatus('Generating follower plane icon...');
+            try {
+                await svgToPng(followerSVG, 'plane_follower.png');
+                updateStatus('✓ Follower plane icon downloaded! Save it to /public/icons/plane_follower.png');
+            } catch (e) {
+                updateStatus('✗ Error: ' + e.message);
+            }
+        }
+
+        async function generateBoth() {
+            updateStatus('Generating both icons...');
+            try {
+                await svgToPng(leaderSVG, 'plane_leader.png');
+                await new Promise(r => setTimeout(r, 500)); // Small delay between downloads
+                await svgToPng(followerSVG, 'plane_follower.png');
+                updateStatus('✓ Both icons downloaded! Save them to /public/icons/');
+            } catch (e) {
+                updateStatus('✗ Error: ' + e.message);
+            }
+        }
+
+        // Show preview on load
+        updatePreview();
+    </script>
+</body>
+</html>

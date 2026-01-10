@@ -1,0 +1,37 @@
+/**
+ * Matches API - Fetch formation flight match opportunities
+ */
+
+import { apiRequest } from './client';
+
+// Cache for loaded matches
+const matchCache = new Map();
+
+/**
+ * Get list of formation flight matches
+ * @param {Object} params - Filter parameters
+ * @param {AbortSignal} signal - Abort signal for cancellation
+ */
+export async function getMatches(params = {}, signal) {
+  const cacheKey = JSON.stringify(params);
+
+  if (matchCache.has(cacheKey)) {
+    return matchCache.get(cacheKey);
+  }
+
+  const data = await apiRequest('/matches', {
+    params,
+    signal,
+    mockPath: 'matches_index.json',
+  });
+
+  matchCache.set(cacheKey, data);
+  return data;
+}
+
+/**
+ * Clear matches cache
+ */
+export function clearMatchCache() {
+  matchCache.clear();
+}

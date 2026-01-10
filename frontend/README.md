@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SkySync Frontend
 
-## Getting Started
+React + Vite frontend for the SkySync flight formation visualization tool.
 
-First, run the development server:
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd frontend
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Development
+npm run dev
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Build for production
+npm run build
 
-## Learn More
+# Preview production build
+npm run preview
+```
 
-To learn more about Next.js, take a look at the following resources:
+Dev server runs on `http://localhost:5173` by default.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **React 18** - UI library
+- **Vite** - Build tool
+- **TailwindCSS** - Styling
+- **Framer Motion** - Animations
+- **Mapbox GL** - 3D/2D map visualization
+- **shadcn/ui** - UI components
+- **React Router** - Client-side routing
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+frontend/
+├── public/
+│   └── data/
+│       └── airports_sample.json    # Airport mock data
+├── src/
+│   ├── api/                        # API client modules
+│   ├── components/                 # React components
+│   │   └── ui/                     # shadcn/ui components
+│   ├── data/                       # Local demo data
+│   ├── hooks/                      # Custom React hooks
+│   ├── lib/                        # Utilities
+│   ├── pages/                      # Page components
+│   ├── App.jsx                     # Router setup
+│   ├── main.jsx                    # Entry point
+│   └── index.css                   # Global styles
+├── index.html
+├── package.json
+├── tailwind.config.js
+└── vite.config.js
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Routes
+
+- `/` - Landing page
+- `/app` - Main application (map + replay)
+
+## Environment Variables
+
+Create a `.env` file:
+
+```
+VITE_MAPBOX_TOKEN=your_mapbox_token_here
+```
+
+## Connecting to Backend
+
+To connect to the backend API instead of mock data, update the API base URL in `src/api/client.js`.

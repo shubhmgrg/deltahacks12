@@ -1,6 +1,36 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
 .env
-ATLAS_CONNECTION.md
+.env.local
+.env.*.local
+
+# Project-specific / generated
 data/
+ATLAS_CONNECTION.md
 COMPUTE_HEATMAP.md
 MONGODB_SETUP.md
 RUN_FORMATION_EDGES.md

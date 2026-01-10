@@ -1,0 +1,41 @@
+[
+  {
+    "rank": 1,
+    "scenarioId": "scenario-3",
+    "flightA": "NH105",
+    "flightB": "JL61",
+    "routeA": "LAX-NRT",
+    "routeB": "LAX-NRT",
+    "formationMinutes": 320,
+    "co2SavedKg": 6620,
+    "fuelSavedKg": 2100,
+    "detourKm": 25,
+    "score": 6607.5
+  },
+  {
+    "rank": 2,
+    "scenarioId": "scenario-1",
+    "flightA": "BA117",
+    "flightB": "VS3",
+    "routeA": "JFK-LHR",
+    "routeB": "JFK-LHR",
+    "formationMinutes": 180,
+    "co2SavedKg": 2680,
+    "fuelSavedKg": 850,
+    "detourKm": 15,
+    "score": 2672.5
+  },
+  {
+    "rank": 3,
+    "scenarioId": "scenario-2",
+    "flightA": "LH1114",
+    "flightB": "IB3615",
+    "routeA": "FRA-MAD",
+    "routeB": "FRA-MAD",
+    "formationMinutes": 85,
+    "co2SavedKg": 1010,
+    "fuelSavedKg": 320,
+    "detourKm": 8,
+    "score": 1006
+  }
+]

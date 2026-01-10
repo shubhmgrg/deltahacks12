@@ -1,20 +1,23 @@
 {
-  "name": "backend",
+  "name": "skysync-backend",
   "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "",
+  "description": "SkySync Backend API - Flight formation matching service",
+  "main": "src/index.js",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js",
-    "dev:watch": "node --watch index.js",
-    "start": "node index.js"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "dev:legacy": "nodemon index.js",
+    "dev:watch-legacy": "node --watch index.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "mongodb": "^7.0.0",
     "nodemon": "^3.1.11"
-  }
+  },
+  "keywords": ["aviation", "formation-flight", "api"],
+  "author": "SkySync Team",
+  "license": "MIT"
 }
