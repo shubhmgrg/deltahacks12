@@ -1,0 +1,11 @@
+{
+  "name": "deltahacks12",
+  "private": true,
+  "dependencies": {
+    "mongodb": "^7.0.0"
+  },
+  "scripts": {
+    "backend:dev": "npm --prefix backend run dev",
+    "backend:start": "npm --prefix backend start"
+  }
+}
