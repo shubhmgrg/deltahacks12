@@ -3,9 +3,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const DB_NAME = process.env.DB_NAME || "deltahacks12";
-
 let client;
 let db;
 
@@ -19,11 +16,22 @@ export async function connectDB() {
       return db;
     }
 
-    client = new MongoClient(MONGODB_URI);
+    const mongodbUri = process.env.MONGODB_URI;
+    const dbName = process.env.DB_NAME;
+
+    if (!mongodbUri) {
+      throw new Error(
+        "Missing MONGODB_URI. Create backend/.env (see backend/env.example) or set MONGODB_URI in your shell."
+      );
+    }
+
+    client = new MongoClient(mongodbUri);
     await client.connect();
-    db = client.db(DB_NAME);
+    db = dbName ? client.db(dbName) : client.db();
     
-    console.log(`Successfully connected to MongoDB database: ${DB_NAME}`);
+    console.log(
+      `Successfully connected to MongoDB ${dbName ? `database: ${dbName}` : "(default database from URI)"}`
+    );
     return db;
   } catch (error) {
     console.error("Error connecting to MongoDB:", error);

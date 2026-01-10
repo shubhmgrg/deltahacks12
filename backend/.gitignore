@@ -1,0 +1,10 @@
+# Backend-specific ignores
+node_modules/
+
+# env / secrets
+.env
+.env.*
+
+# logs
+*.log
+
