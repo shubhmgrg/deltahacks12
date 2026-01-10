@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Items API Mock</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; background: #fafafa; color: #111; }
+      .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #e5e7eb; }
+      button { padding: 10px 12px; border-radius: 10px; border: 1px solid #e5e7eb; background: #111; color: white; cursor: pointer; }
+      button.secondary { background: white; color: #111; }
+      button.danger { background: #b91c1c; border-color: #b91c1c; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .items { display: grid; gap: 10px; }
+      .item { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+      .muted { color: #6b7280; font-size: 12px; }
+      .err { color: #b91c1c; font-size: 13px; }
+      code { background: #f3f4f6; padding: 2px 6px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>Items API Mock</h1>
+    <p class="muted">Testing backend endpoints that read/write MongoDB.</p>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label class="muted">Title (required)</label>
+          <input id="title" placeholder="e.g. Buy milk" />
+        </div>
+        <div>
+          <label class="muted">Notes (optional)</label>
+          <input id="notes" placeholder="anything…" />
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button id="createBtn">Create</button>
+        <button id="refreshBtn" class="secondary">Refresh</button>
+      </div>
+      <div id="error" class="err" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <h2 style="margin:0;">Items</h2>
+        <span id="count" class="muted"></span>
+      </div>
+      <div id="items" class="items" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <h2 style="margin:0;">Query MongoDB</h2>
+        <span class="muted">Uses <code>GET /api/flight-nodes</code> and <code>GET /api/formation-edges</code></span>
+      </div>
+
+      <div style="margin-top:12px;" class="row">
+        <div>
+          <h3 style="margin:0 0 8px 0; font-size:14px;">Flight Nodes</h3>
+          <div class="row" style="grid-template-columns: 1fr 1fr;">
+            <div>
+              <label class="muted">limit</label>
+              <input id="fn_limit" placeholder="200" />
+            </div>
+            <div>
+              <label class="muted">flight_id</label>
+              <input id="fn_flight_id" placeholder="123" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label class="muted">carrier</label>
+              <input id="fn_carrier" placeholder="UA" />
+            </div>
+            <div>
+              <label class="muted">origin</label>
+              <input id="fn_origin" placeholder="JFK" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label class="muted">dest</label>
+              <input id="fn_dest" placeholder="LAX" />
+            </div>
+            <div>
+              <label class="muted">start (ISO)</label>
+              <input id="fn_start" placeholder="2013-01-01T05:00:00.000Z" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label class="muted">end (ISO)</label>
+              <input id="fn_end" placeholder="2013-01-01T06:00:00.000Z" />
+            </div>
+            <div>
+              <label class="muted">maxDistanceM (optional)</label>
+              <input id="fn_maxDistanceM" placeholder="50000" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label class="muted">nearLat (optional)</label>
+              <input id="fn_nearLat" placeholder="40.7128" />
+            </div>
+            <div>
+              <label class="muted">nearLon (optional)</label>
+              <input id="fn_nearLon" placeholder="-74.0060" />
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button id="fn_queryBtn" class="secondary">Run flight_nodes query</button>
+          </div>
+          <div id="fn_meta" class="muted" style="margin-top:8px;"></div>
+        </div>
+
+        <div>
+          <h3 style="margin:0 0 8px 0; font-size:14px;">Formation Edges</h3>
+          <div class="row" style="grid-template-columns: 1fr 1fr;">
+            <div>
+              <label class="muted">limit</label>
+              <input id="fe_limit" placeholder="200" />
+            </div>
+            <div>
+              <label class="muted">minScore</label>
+              <input id="fe_minScore" placeholder="0.8" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div>
+              <label class="muted">flight1_id</label>
+              <input id="fe_flight1_id" placeholder="123" />
+            </div>
+            <div>
+              <label class="muted">flight2_id</label>
+              <input id="fe_flight2_id" placeholder="456" />
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button id="fe_queryBtn" class="secondary">Run formation_edges query</button>
+          </div>
+          <div id="fe_meta" class="muted" style="margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <h3 style="margin:0 0 8px 0; font-size:14px;">Query Result (raw JSON)</h3>
+        <pre id="queryResult" class="item" style="white-space:pre-wrap; overflow:auto; max-height:360px; margin:0;"></pre>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const errorEl = $("error");
+      const itemsEl = $("items");
+      const countEl = $("count");
+      const titleEl = $("title");
+      const notesEl = $("notes");
+      const createBtn = $("createBtn");
+      const refreshBtn = $("refreshBtn");
+      const queryResultEl = $("queryResult");
+
+      // flight_nodes inputs
+      const fnQueryBtn = $("fn_queryBtn");
+      const fnMeta = $("fn_meta");
+      const fn = {
+        limit: $("fn_limit"),
+        flight_id: $("fn_flight_id"),
+        carrier: $("fn_carrier"),
+        origin: $("fn_origin"),
+        dest: $("fn_dest"),
+        start: $("fn_start"),
+        end: $("fn_end"),
+        nearLat: $("fn_nearLat"),
+        nearLon: $("fn_nearLon"),
+        maxDistanceM: $("fn_maxDistanceM"),
+      };
+
+      // formation_edges inputs
+      const feQueryBtn = $("fe_queryBtn");
+      const feMeta = $("fe_meta");
+      const fe = {
+        limit: $("fe_limit"),
+        minScore: $("fe_minScore"),
+        flight1_id: $("fe_flight1_id"),
+        flight2_id: $("fe_flight2_id"),
+      };
+
+      function setError(msg) { errorEl.textContent = msg || ""; }
+      function setBusy(b) {
+        createBtn.disabled = b;
+        refreshBtn.disabled = b;
+        fnQueryBtn.disabled = b;
+        feQueryBtn.disabled = b;
+      }
+
+      async function request(path, init) {
+        const res = await fetch(path, {
+          ...init,
+          headers: { "Content-Type": "application/json", ...(init && init.headers ? init.headers : {}) },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      }
+
+      function render(items) {
+        countEl.textContent = `${items.length} item(s)`;
+        itemsEl.innerHTML = "";
+        if (!items.length) {
+          itemsEl.innerHTML = `<div class="muted">No items yet. Create one above.</div>`;
+          return;
+        }
+
+        for (const it of items) {
+          const id = String(it._id);
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <div class="muted">id: ${id}</div>
+            <div style="margin-top:6px; font-weight:600;">${escapeHtml(it.title || "")}</div>
+            <div style="margin-top:6px;" class="muted">${escapeHtml(it.notes || "")}</div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button class="secondary" data-action="edit" data-id="${id}">Edit</button>
+              <button class="danger" data-action="delete" data-id="${id}">Delete</button>
+            </div>
+          `;
+          itemsEl.appendChild(div);
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      async function refresh() {
+        setError("");
+        setBusy(true);
+        try {
+          const data = await request("/api/items?limit=200");
+          render(data.items || []);
+        } catch (e) {
+          setError(e.message || String(e));
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      function setQueryResult(obj) {
+        queryResultEl.textContent = JSON.stringify(obj, null, 2);
+      }
+
+      function buildQuery(params) {
+        const sp = new URLSearchParams();
+        for (const [k, v] of Object.entries(params)) {
+          if (v === undefined || v === null) continue;
+          const s = String(v).trim();
+          if (!s) continue;
+          sp.set(k, s);
+        }
+        const qs = sp.toString();
+        return qs ? `?${qs}` : "";
+      }
+
+      async function queryFlightNodes() {
+        setError("");
+        fnMeta.textContent = "";
+        feMeta.textContent = "";
+        setBusy(true);
+        try {
+          const qs = buildQuery({
+            limit: fn.limit.value || undefined,
+            flight_id: fn.flight_id.value || undefined,
+            carrier: fn.carrier.value || undefined,
+            origin: fn.origin.value || undefined,
+            dest: fn.dest.value || undefined,
+            start: fn.start.value || undefined,
+            end: fn.end.value || undefined,
+            nearLat: fn.nearLat.value || undefined,
+            nearLon: fn.nearLon.value || undefined,
+            maxDistanceM: fn.maxDistanceM.value || undefined,
+          });
+          const data = await request(`/api/flight-nodes${qs}`);
+          const count = Array.isArray(data.nodes) ? data.nodes.length : 0;
+          fnMeta.textContent = `Returned ${count} node(s)`;
+          setQueryResult(data);
+        } catch (e) {
+          setError(e.message || String(e));
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function queryFormationEdges() {
+        setError("");
+        fnMeta.textContent = "";
+        feMeta.textContent = "";
+        setBusy(true);
+        try {
+          const qs = buildQuery({
+            limit: fe.limit.value || undefined,
+            minScore: fe.minScore.value || undefined,
+            flight1_id: fe.flight1_id.value || undefined,
+            flight2_id: fe.flight2_id.value || undefined,
+          });
+          const data = await request(`/api/formation-edges${qs}`);
+          const count = Array.isArray(data.edges) ? data.edges.length : 0;
+          feMeta.textContent = `Returned ${count} edge(s)`;
+          setQueryResult(data);
+        } catch (e) {
+          setError(e.message || String(e));
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function createItem() {
+        const title = titleEl.value.trim();
+        const notes = notesEl.value.trim();
+        if (!title) return setError("Title is required.");
+        setError("");
+        setBusy(true);
+        try {
+          await request("/api/items", {
+            method: "POST",
+            body: JSON.stringify({ title, notes: notes || undefined }),
+          });
+          titleEl.value = "";
+          notesEl.value = "";
+          await refresh();
+        } catch (e) {
+          setError(e.message || String(e));
+          setBusy(false);
+        }
+      }
+
+      async function deleteItem(id) {
+        setError("");
+        setBusy(true);
+        try {
+          await request(`/api/items/${id}`, { method: "DELETE" });
+          await refresh();
+        } catch (e) {
+          setError(e.message || String(e));
+          setBusy(false);
+        }
+      }
+
+      async function editItem(id) {
+        const newTitle = prompt("New title?");
+        if (newTitle == null) return;
+        const title = newTitle.trim();
+        if (!title) return setError("Title cannot be empty.");
+        setError("");
+        setBusy(true);
+        try {
+          await request(`/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ title }) });
+          await refresh();
+        } catch (e) {
+          setError(e.message || String(e));
+          setBusy(false);
+        }
+      }
+
+      createBtn.addEventListener("click", () => void createItem());
+      refreshBtn.addEventListener("click", () => void refresh());
+      fnQueryBtn.addEventListener("click", () => void queryFlightNodes());
+      feQueryBtn.addEventListener("click", () => void queryFormationEdges());
+      itemsEl.addEventListener("click", (e) => {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        const action = btn.getAttribute("data-action");
+        const id = btn.getAttribute("data-id");
+        if (!action || !id) return;
+        if (action === "delete") void deleteItem(id);
+        if (action === "edit") void editItem(id);
+      });
+
+      refresh();
+    </script>
+  </body>
+</html>
+

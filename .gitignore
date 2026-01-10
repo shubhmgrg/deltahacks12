@@ -1,3 +1,11 @@
+# env / secrets (ignore anywhere)
 .env
+.env.*
+backend/.env
+backend/.env.*
+delta/.env
+delta/.env.*
+
+# misc
 Atlas_connection.md
--r /data
+/data/

@@ -1,12 +1,18 @@
 import express from "express";
 import { connectDB, getDB } from "./datastore.js";
-import { itemsRouter } from "./routes/items.js";
+import { formationEdgesRouter, flightNodesRouter, itemsRouter } from "./routes/items.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const app = express();
 // Next dev server defaults to 3000; keep backend on a different default port to avoid conflicts.
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
   res.send("Hello from Express with ES Modules");
@@ -23,7 +29,13 @@ app.get("/health", async (req, res) => {
   }
 });
 
+app.get("/test", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "items.html"));
+});
+
 app.use("/api/items", itemsRouter);
+app.use("/api/flight-nodes", flightNodesRouter);
+app.use("/api/formation-edges", formationEdgesRouter);
 
 async function start() {
   await connectDB();
