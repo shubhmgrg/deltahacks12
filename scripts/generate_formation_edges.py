@@ -20,17 +20,26 @@ print("="*60)
 print("STEP 5: Generate Candidate Formation Edges")
 print("="*60)
 
-# Configuration
-MONGO_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
+# Configuration - Try to load from .env file first
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file if it exists
+except ImportError:
+    pass  # python-dotenv not installed, will use environment variables only
+
+MONGO_URI = os.getenv('MONGODB_URI', os.getenv('MONGO_ATLAS_URI'))
+if not MONGO_URI:
+    MONGO_URI = 'mongodb://localhost:27017/'  # Default to local if not found
+
 DB_NAME = os.getenv('MONGODB_DB_NAME', 'flights')
 NODES_COLLECTION = 'flight_nodes'
 EDGES_COLLECTION = 'formation_edges'  # Where to store edges
 
-# Formation detection parameters
-MAX_DISTANCE_KM = 50  # Maximum distance in kilometers
-MAX_TIME_DIFF_MINUTES = 10  # Maximum time difference in minutes (±10 min)
-MAX_CANDIDATES_PER_NODE = 100  # Limit candidates per node to avoid processing too many
-COMPUTE_HEADING = True  # Whether to compute heading similarity
+# Formation detection parameters (generalized for heatmap visualization - optimized for speed)
+MAX_DISTANCE_KM = 200  # Maximum distance in kilometers (increased to reduce query precision needed)
+MAX_TIME_DIFF_MINUTES = 30  # Maximum time difference in minutes (±30 min, generalized for heatmap)
+MAX_CANDIDATES_PER_NODE = 20  # Limit candidates per node (aggressively reduced for maximum speed)
+COMPUTE_HEADING = False  # Whether to compute heading similarity (disabled for speed)
 
 # Optional: Limit number of nodes to process (for testing)
 # Set to None to process all nodes
@@ -40,6 +49,11 @@ if MAX_NODES_TO_PROCESS:
 else:
     MAX_NODES_TO_PROCESS = None
 
+# Node sampling: Process every Nth node (speeds up processing significantly)
+# Set to 1 to process all nodes, 2 for every other node, 3 for every 3rd, etc.
+# Higher = faster but less coverage (good for heatmap)
+NODE_SAMPLING_RATE = int(os.getenv('NODE_SAMPLING_RATE', '10'))  # Default: every 10th node for speed
+
 print(f"\nConfiguration:")
 print(f"  Max distance: {MAX_DISTANCE_KM} km")
 print(f"  Max time difference: ±{MAX_TIME_DIFF_MINUTES} minutes")
@@ -47,15 +61,35 @@ print(f"  Max candidates per node: {MAX_CANDIDATES_PER_NODE}")
 print(f"  Compute heading similarity: {COMPUTE_HEADING}")
 if MAX_NODES_TO_PROCESS:
     print(f"  ⚠ LIMIT: Processing only first {MAX_NODES_TO_PROCESS:,} nodes (TEST MODE)")
+if NODE_SAMPLING_RATE > 1:
+    print(f"  ⚠ SAMPLING: Processing every {NODE_SAMPLING_RATE} nodes ({100/NODE_SAMPLING_RATE:.1f}% of nodes)")
+    print(f"    → Use NODE_SAMPLING_RATE=1 to process all nodes")
 else:
-    print(f"  Processing all nodes")
+    print(f"  Processing all nodes (no sampling)")
 
-# Connect to MongoDB
+# Connect to MongoDB with connection pooling for better performance
 print(f"\nConnecting to MongoDB...")
 try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
+    # Use longer timeout for Atlas connections + connection pooling
+    if 'localhost' in MONGO_URI or '127.0.0.1' in MONGO_URI:
+        client = MongoClient(
+            MONGO_URI, 
+            serverSelectionTimeoutMS=3000,
+            maxPoolSize=50,  # Connection pooling for concurrent operations
+            minPoolSize=10
+        )
+        connection_type = "local MongoDB"
+    else:
+        client = MongoClient(
+            MONGO_URI, 
+            serverSelectionTimeoutMS=10000,
+            maxPoolSize=50,  # Connection pooling for better performance
+            minPoolSize=10
+        )
+        connection_type = "MongoDB Atlas"
+    
     client.admin.command('ping')
-    print(f"✓ Connected to MongoDB")
+    print(f"✓ Connected to {connection_type}")
     
     db = client[DB_NAME]
     nodes_collection = db[NODES_COLLECTION]
@@ -235,8 +269,12 @@ time_step = timedelta(minutes=MAX_TIME_DIFF_MINUTES)
 edges_generated = 0
 edges_stored = 0
 batch_edges = []
-batch_size = 1000
+batch_size = 10000  # Larger batch size for better performance (fewer MongoDB operations)
 processed_nodes = 0
+
+# Performance configuration
+# Note: Threading/multiprocessing with MongoDB cursors is complex
+# Current optimizations: connection pooling, larger batches, reduced overhead
 
 start_time = time.time()
 
@@ -246,18 +284,32 @@ print("\nProcessing nodes to find formation candidates...")
 # Get cursor for all nodes (or limited subset for testing)
 if MAX_NODES_TO_PROCESS:
     nodes_cursor = nodes_collection.find().sort([('timestamp', 1), ('flight_id', 1)]).limit(MAX_NODES_TO_PROCESS)
-    total_nodes = min(MAX_NODES_TO_PROCESS, nodes_collection.count_documents({}))
+    total_nodes_in_db = min(MAX_NODES_TO_PROCESS, nodes_collection.count_documents({}))
 else:
     nodes_cursor = nodes_collection.find().sort([('timestamp', 1), ('flight_id', 1)])
-    total_nodes = nodes_collection.count_documents({})
+    total_nodes_in_db = nodes_collection.count_documents({})
+
+# Calculate expected nodes to process with sampling
+if NODE_SAMPLING_RATE > 1:
+    expected_nodes_to_process = total_nodes_in_db // NODE_SAMPLING_RATE
+else:
+    expected_nodes_to_process = total_nodes_in_db
+total_nodes = expected_nodes_to_process  # For progress tracking
 
 if HAS_TQDM:
-    nodes_cursor = tqdm(nodes_cursor, total=total_nodes, desc="Processing nodes")
+    nodes_cursor = tqdm(nodes_cursor, total=total_nodes_in_db, desc="Processing nodes")
 
 current_time_window = None
 window_nodes = []  # Cache nodes in current time window
 
+node_index = 0
 for node in nodes_cursor:
+    node_index += 1
+    
+    # Skip nodes based on sampling rate
+    if NODE_SAMPLING_RATE > 1 and node_index % NODE_SAMPLING_RATE != 0:
+        continue  # Skip this node
+    
     processed_nodes += 1
     
     # Extract node data
@@ -284,6 +336,7 @@ for node in nodes_cursor:
     time_window_start = node_timestamp - timedelta(minutes=MAX_TIME_DIFF_MINUTES)
     time_window_end = node_timestamp + timedelta(minutes=MAX_TIME_DIFF_MINUTES)
     
+    # Optimized query: Use hint for index, batch_size for faster iteration
     nearby_nodes = nodes_collection.find({
         'location': {
             '$near': {
@@ -299,7 +352,7 @@ for node in nodes_cursor:
             '$gte': time_window_start,
             '$lte': time_window_end
         }
-    }).limit(MAX_CANDIDATES_PER_NODE)  # Limit candidates to avoid processing too many
+    }, batch_size=MAX_CANDIDATES_PER_NODE).limit(MAX_CANDIDATES_PER_NODE)  # Limit candidates + batch size
     
         # Process each nearby node
     for candidate in nearby_nodes:
@@ -322,17 +375,12 @@ for node in nodes_cursor:
         if isinstance(candidate_timestamp, str):
             candidate_timestamp = datetime.fromisoformat(candidate_timestamp.replace('Z', '+00:00'))
         
-        # Calculate distance
+        # Calculate distance and time difference (MongoDB already filtered, but we need values)
         distance_km = haversine_distance(node_lat, node_lon, candidate_lat, candidate_lon)
-        
-        # Calculate time difference
         time_diff = (candidate_timestamp - node_timestamp).total_seconds()
         
-        # Filter by distance and time (geospatial query may have slight inaccuracies)
-        if distance_km > MAX_DISTANCE_KM:
-            continue
-        if abs(time_diff) > MAX_TIME_DIFF_MINUTES * 60:
-            continue
+        # Skip redundant validation - MongoDB query already filtered by distance and time
+        # Trust the query results for maximum speed
         
         # Calculate heading for candidate if enabled
         candidate_heading = None
@@ -351,21 +399,22 @@ for node in nodes_cursor:
         flight1 = node_flight_id
         flight2 = candidate_flight_id
         
-        # Create edge document
+        # Create edge document (simplified for speed - minimal fields for heatmap)
         edge = {
-            'node1_id': str(node_id),
-            'node2_id': str(candidate_id),
             'flight1_id': flight1,
             'flight2_id': flight2,
             'timestamp1': node_timestamp,
             'timestamp2': candidate_timestamp,
             'time_diff_seconds': time_diff,
-            'distance_km': distance_km,
-            'feasibility_score': feasibility_score,
-            'heading1': node_heading,
-            'heading2': candidate_heading,
-            'heading_similarity': heading_sim,
-            'created_at': datetime.now()
+            'distance_km': round(distance_km, 2),  # Round to 2 decimals for storage efficiency
+            'feasibility_score': round(feasibility_score, 4),  # Round to 4 decimals
+            # Optional fields (commented out for speed - uncomment if needed)
+            # 'node1_id': str(node_id),
+            # 'node2_id': str(candidate_id),
+            # 'heading1': node_heading,
+            # 'heading2': candidate_heading,
+            # 'heading_similarity': heading_sim,
+            # 'created_at': datetime.now()
         }
         
         edges_generated += 1
@@ -383,8 +432,8 @@ for node in nodes_cursor:
                 print(f"\nWarning: Error inserting batch: {e}")
                 batch_edges = []
     
-    # Progress update
-    if processed_nodes % 1000 == 0:
+    # Progress update (less frequent for better performance)
+    if processed_nodes % 10000 == 0:
         elapsed = time.time() - start_time
         rate = processed_nodes / elapsed if elapsed > 0 else 0
         remaining = (total_nodes - processed_nodes) / rate if rate > 0 else 0

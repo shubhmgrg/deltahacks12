@@ -1,3 +1,10 @@
 .env
-Atlas_connection.md
--r /data
+ATLAS_CONNECTION.md
+data/
+COMPUTE_HEATMAP.md
+MONGODB_SETUP.md
+RUN_FORMATION_EDGES.md
+run_formation_edges.sh
+step3_output.log
+requirements.txt
+__pycache__/
