@@ -1,0 +1,18 @@
+{
+  "name": "skysync-backend",
+  "version": "1.0.0",
+  "description": "SkySync Backend API - Flight formation matching service",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "keywords": ["aviation", "formation-flight", "api"],
+  "author": "SkySync Team",
+  "license": "MIT"
+}

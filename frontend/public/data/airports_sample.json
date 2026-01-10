@@ -1,0 +1,178 @@
+[
+  {
+    "code": "YYZ",
+    "name": "Toronto Pearson International Airport",
+    "city": "Toronto",
+    "country": "Canada",
+    "latitude": 43.6772,
+    "longitude": -79.6306
+  },
+  {
+    "code": "JFK",
+    "name": "John F. Kennedy International Airport",
+    "city": "New York",
+    "country": "United States",
+    "latitude": 40.6413,
+    "longitude": -73.7781
+  },
+  {
+    "code": "EWR",
+    "name": "Newark Liberty International Airport",
+    "city": "Newark",
+    "country": "United States",
+    "latitude": 40.6895,
+    "longitude": -74.1745
+  },
+  {
+    "code": "LGA",
+    "name": "LaGuardia Airport",
+    "city": "New York",
+    "country": "United States",
+    "latitude": 40.7769,
+    "longitude": -73.8740
+  },
+  {
+    "code": "YUL",
+    "name": "Montréal–Pierre Elliott Trudeau International Airport",
+    "city": "Montreal",
+    "country": "Canada",
+    "latitude": 45.4577,
+    "longitude": -73.7499
+  },
+  {
+    "code": "LAX",
+    "name": "Los Angeles International Airport",
+    "city": "Los Angeles",
+    "country": "United States",
+    "latitude": 33.9425,
+    "longitude": -118.4081
+  },
+  {
+    "code": "ORD",
+    "name": "O'Hare International Airport",
+    "city": "Chicago",
+    "country": "United States",
+    "latitude": 41.9742,
+    "longitude": -87.9073
+  },
+  {
+    "code": "DFW",
+    "name": "Dallas/Fort Worth International Airport",
+    "city": "Dallas",
+    "country": "United States",
+    "latitude": 32.8998,
+    "longitude": -97.0403
+  },
+  {
+    "code": "ATL",
+    "name": "Hartsfield-Jackson Atlanta International Airport",
+    "city": "Atlanta",
+    "country": "United States",
+    "latitude": 33.6407,
+    "longitude": -84.4277
+  },
+  {
+    "code": "MIA",
+    "name": "Miami International Airport",
+    "city": "Miami",
+    "country": "United States",
+    "latitude": 25.7959,
+    "longitude": -80.2870
+  },
+  {
+    "code": "SFO",
+    "name": "San Francisco International Airport",
+    "city": "San Francisco",
+    "country": "United States",
+    "latitude": 37.6213,
+    "longitude": -122.3790
+  },
+  {
+    "code": "SEA",
+    "name": "Seattle-Tacoma International Airport",
+    "city": "Seattle",
+    "country": "United States",
+    "latitude": 47.4502,
+    "longitude": -122.3088
+  },
+  {
+    "code": "BOS",
+    "name": "Logan International Airport",
+    "city": "Boston",
+    "country": "United States",
+    "latitude": 42.3656,
+    "longitude": -71.0096
+  },
+  {
+    "code": "IAD",
+    "name": "Washington Dulles International Airport",
+    "city": "Washington",
+    "country": "United States",
+    "latitude": 38.9531,
+    "longitude": -77.4565
+  },
+  {
+    "code": "PHL",
+    "name": "Philadelphia International Airport",
+    "city": "Philadelphia",
+    "country": "United States",
+    "latitude": 39.8719,
+    "longitude": -75.2411
+  },
+  {
+    "code": "YVR",
+    "name": "Vancouver International Airport",
+    "city": "Vancouver",
+    "country": "Canada",
+    "latitude": 49.1947,
+    "longitude": -123.1792
+  },
+  {
+    "code": "YYC",
+    "name": "Calgary International Airport",
+    "city": "Calgary",
+    "country": "Canada",
+    "latitude": 51.1215,
+    "longitude": -114.0076
+  },
+  {
+    "code": "YOW",
+    "name": "Ottawa Macdonald-Cartier International Airport",
+    "city": "Ottawa",
+    "country": "Canada",
+    "latitude": 45.3225,
+    "longitude": -75.6692
+  },
+  {
+    "code": "LHR",
+    "name": "London Heathrow Airport",
+    "city": "London",
+    "country": "United Kingdom",
+    "latitude": 51.4700,
+    "longitude": -0.4543
+  },
+  {
+    "code": "CDG",
+    "name": "Charles de Gaulle Airport",
+    "city": "Paris",
+    "country": "France",
+    "latitude": 49.0097,
+    "longitude": 2.5479
+  },
+  {
+    "code": "FRA",
+    "name": "Frankfurt Airport",
+    "city": "Frankfurt",
+    "country": "Germany",
+    "latitude": 50.0379,
+    "longitude": 8.5622
+  },
+  {
+    "code": "AMS",
+    "name": "Amsterdam Airport Schiphol",
+    "city": "Amsterdam",
+    "country": "Netherlands",
+    "latitude": 52.3105,
+    "longitude": 4.7683
+  }
+]
