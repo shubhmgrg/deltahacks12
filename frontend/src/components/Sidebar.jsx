@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Slider } from './ui/slider';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
+import { Switch } from './ui/switch';
 import {
   Accordion,
   AccordionItem,
@@ -19,8 +20,13 @@ import {
   Route,
   Leaf,
   MapPin,
+  Activity,
+  Pause,
+  RotateCcw,
+  Zap,
 } from 'lucide-react';
 import { formatNumber, formatCO2, formatDistance, formatDuration } from '@/lib/utils';
+import { getHeatmapData, getTimeBuckets, getHeatmapStats } from '../api/heatmap';
 
 export default function Sidebar({
   isOpen,
@@ -35,11 +41,220 @@ export default function Sidebar({
   savingsPreset,
   theme = 'light',
   tripParams,
+  heatmapEnabled = false,
+  onHeatmapToggle = null,
+  onHeatmapDataChange = null,
+  onHeatmapTimeBucketChange = null,
+  preloadedHeatmapStats = null,
+  preloadedTimeBuckets = [],
 }) {
   const isDark = theme === 'dark';
   const handleFilterChange = (key, value) => {
     onFiltersChange({ ...filters, [key]: value });
   };
+
+  // Heatmap state
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [timeBuckets, setTimeBuckets] = useState(preloadedTimeBuckets);
+  const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
+  const [interpolationProgress, setInterpolationProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [stats, setStats] = useState(preloadedHeatmapStats);
+  const [allHeatmapData, setAllHeatmapData] = useState(null);
+  const animationFrameRef = useRef(null);
+  const isPlayingRef = useRef(false);
+
+  // Load time buckets on mount (only if not preloaded)
+  useEffect(() => {
+    if (preloadedTimeBuckets.length === 0) {
+      loadTimeBuckets();
+    }
+    if (!preloadedHeatmapStats) {
+      loadStats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load all heatmap data when enabled
+  useEffect(() => {
+    if (heatmapEnabled && timeBuckets.length > 0) {
+      loadAllHeatmapData();
+    } else if (!heatmapEnabled && onHeatmapDataChange) {
+      onHeatmapDataChange(null);
+      setAllHeatmapData(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heatmapEnabled, timeBuckets.length]);
+
+  // Update interpolated data when time index or progress changes
+  useEffect(() => {
+    if (heatmapEnabled && allHeatmapData && timeBuckets.length > 0 && onHeatmapDataChange) {
+      updateInterpolatedData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTimeIndex, interpolationProgress, allHeatmapData, heatmapEnabled]);
+
+  const loadTimeBuckets = async () => {
+    try {
+      const buckets = await getTimeBuckets();
+      setTimeBuckets(buckets);
+      if (buckets.length > 0) {
+        setCurrentTimeIndex(0);
+      }
+    } catch (error) {
+      console.error('Failed to load time buckets:', error);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const statsData = await getHeatmapStats();
+      setStats(statsData);
+    } catch (error) {
+      console.error('Failed to load heatmap stats:', error);
+    }
+  };
+
+  const loadAllHeatmapData = async () => {
+    setHeatmapLoading(true);
+    try {
+      const data = await getHeatmapData(null, false);
+      if (data && data.data) {
+        setAllHeatmapData(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to load heatmap data:', error);
+    } finally {
+      setHeatmapLoading(false);
+    }
+  };
+
+  const updateInterpolatedData = () => {
+    if (!allHeatmapData || timeBuckets.length === 0 || !onHeatmapDataChange) return;
+
+    const currentBucket = timeBuckets[currentTimeIndex];
+    const nextIndex = (currentTimeIndex + 1) % timeBuckets.length;
+    const nextBucket = timeBuckets[nextIndex];
+    const progress = interpolationProgress;
+
+    const currentMap = new Map();
+    const nextMap = new Map();
+
+    allHeatmapData.forEach((cell) => {
+      const key = `${cell.lat},${cell.lon}`;
+      if (cell.time_bucket === currentBucket) {
+        currentMap.set(key, cell);
+      }
+      if (cell.time_bucket === nextBucket) {
+        nextMap.set(key, cell);
+      }
+    });
+
+    const interpolatedCells = [];
+    const allKeys = new Set([...currentMap.keys(), ...nextMap.keys()]);
+
+    allKeys.forEach((key) => {
+      const currentCell = currentMap.get(key);
+      const nextCell = nextMap.get(key);
+
+      if (currentCell || nextCell) {
+        const currentIntensity = currentCell?.intensity || currentCell?.flight_count || 0;
+        const nextIntensity = nextCell?.intensity || nextCell?.flight_count || 0;
+        
+        const easeProgress = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        
+        const interpolatedIntensity = currentIntensity + (nextIntensity - currentIntensity) * easeProgress;
+
+        const baseCell = currentCell || nextCell;
+        interpolatedCells.push({
+          ...baseCell,
+          intensity: Math.max(0, interpolatedIntensity),
+          flight_count: Math.round(interpolatedIntensity),
+        });
+      }
+    });
+
+    onHeatmapDataChange(interpolatedCells);
+    if (onHeatmapTimeBucketChange) {
+      onHeatmapTimeBucketChange(currentBucket);
+    }
+  };
+
+  const handlePlayPause = () => {
+    if (timeBuckets.length === 0) return;
+
+    if (isPlaying) {
+      isPlayingRef.current = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      setIsPlaying(false);
+    } else {
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      
+      let bucketStartTime = Date.now();
+      const duration = 1000;
+
+      const animate = () => {
+        if (!isPlayingRef.current) {
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          return;
+        }
+
+        const now = Date.now();
+        const elapsed = now - bucketStartTime;
+        const progress = Math.min(1, elapsed / duration);
+
+        setInterpolationProgress(progress);
+
+        if (progress >= 1) {
+          setCurrentTimeIndex((prev) => (prev + 1) % timeBuckets.length);
+          setInterpolationProgress(0);
+          bucketStartTime = now;
+        }
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    }
+  };
+
+  const handleReset = () => {
+    isPlayingRef.current = false;
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setIsPlaying(false);
+    setCurrentTimeIndex(0);
+    setInterpolationProgress(0);
+  };
+
+  const handleTimeSliderChange = (value) => {
+    const index = Math.round(value[0]);
+    setCurrentTimeIndex(index);
+    if (isPlaying) {
+      handlePlayPause();
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isPlayingRef.current = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   const savingsRates = {
     conservative: 0.02,
@@ -122,8 +337,8 @@ export default function Sidebar({
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {/* Filters Section */}
-            <Accordion type="single" collapsible defaultValue="filters">
+            {/* Filters and Heatmap Sections */}
+            <Accordion type="multiple" defaultValue={["heatmap"]} className="w-full">
               <AccordionItem value="filters" className="border-b-0 px-4">
                 <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                   <span className="font-medium">Formation Filters</span>
@@ -217,6 +432,107 @@ export default function Sidebar({
                   </div>
                 </AccordionContent>
               </AccordionItem>
+
+              {/* Heatmap Section */}
+              {onHeatmapToggle && (
+                <AccordionItem value="heatmap" className="border-b-0 px-4 border-t">
+                  <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                    <div className="flex items-center gap-2 flex-1">
+                      <Activity className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+                      <span className="font-medium">Heatmap</span>
+                    </div>
+                    <div className={isDark ? '' : 'heatmap-switch-light'}>
+                      <Switch
+                        checked={heatmapEnabled}
+                        onCheckedChange={onHeatmapToggle}
+                        onClick={(e) => e.stopPropagation()}
+                        className={isDark ? '' : 'data-[state=checked]:bg-slate-500 data-[state=unchecked]:bg-slate-300'}
+                      />
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4 py-2">
+                      {/* Stats */}
+                      {stats && (
+                        <div className={`flex items-center gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                          <div className="flex items-center gap-1">
+                            <Zap className="w-3 h-3" />
+                            <span>Max: {stats.maxIntensity || 0}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{stats.timeBuckets || 0} time steps</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Time Bucket Display */}
+                      {timeBuckets.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Time:</span>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs font-mono ${isDark ? 'border-blue-500/30 text-blue-400' : 'border-blue-500/50 text-blue-600'}`}
+                            >
+                              {timeBuckets[currentTimeIndex] || '--:--'}
+                            </Badge>
+                          </div>
+
+                          {/* Time Slider */}
+                          <div className="space-y-1">
+                            <Slider
+                              value={[currentTimeIndex]}
+                              min={0}
+                              max={Math.max(0, timeBuckets.length - 1)}
+                              step={1}
+                              onValueChange={handleTimeSliderChange}
+                              className="py-1"
+                            />
+                            <div className={`flex justify-between text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
+                              <span>{timeBuckets[0] || '00:00'}</span>
+                              <span>{timeBuckets[timeBuckets.length - 1] || '23:59'}</span>
+                            </div>
+                          </div>
+
+                          {/* Playback Controls */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handlePlayPause}
+                              disabled={heatmapLoading || timeBuckets.length === 0}
+                              className={`flex-1 ${isDark ? 'border-white/10 bg-slate-800/50 text-slate-200 hover:bg-slate-700 hover:text-white' : 'border-slate-300 bg-slate-50 text-slate-900 hover:bg-slate-100 hover:border-slate-400'}`}
+                            >
+                              {isPlaying ? (
+                                <>
+                                  <Pause className="w-3 h-3 mr-1" />
+                                  Pause
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3 h-3 mr-1" />
+                                  Play
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleReset}
+                              disabled={heatmapLoading || timeBuckets.length === 0}
+                              className={isDark ? 'border-white/10 bg-slate-800/50 text-slate-200 hover:bg-slate-700 hover:text-white' : 'border-slate-300 bg-slate-50 text-slate-900 hover:bg-slate-100 hover:border-slate-400'}
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
             </Accordion>
 
             {/* Best Opportunities */}
