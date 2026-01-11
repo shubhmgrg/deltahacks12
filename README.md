@@ -1,10 +1,12 @@
-![SkySync](public/SkySync.png)
+![image0](public/image0.png)
 
-![Landing](public/landscape.png)
+![image1](public/image1.png)
 
-![DarkModeGlobe](frontend/public/darkmodeglobe.gif)
+![image2](public/image2.png)
 
-![Clouds](frontend/public/vidclouds.gif)
+![image3](public/image3.png)
+
+![image4](public/image4.png)
 
 ## MongoDB Atlas (recommended)
 
