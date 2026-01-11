@@ -1,3 +1,11 @@
+![SkySync](public/SkySync.png)
+
+![Landing](public/landscape.png)
+
+![DarkModeGlobe](frontend/public/darkmodeglobe.gif)
+
+![Clouds](frontend/public/vidclouds.gif)
+
 ## MongoDB Atlas (recommended)
 
 ### 1) Create `backend/.env`

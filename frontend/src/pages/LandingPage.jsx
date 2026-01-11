@@ -21,7 +21,9 @@ function useAnimatedCounter(end, duration = 2000, trigger = true) {
     const animate = (ts) => {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
-      setCount(Math.floor(end * (1 - Math.pow(1 - progress, 3))));
+      // Ease-out cubic. Keep as number (supports large values + decimals).
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(end * eased);
       if (progress < 1) requestAnimationFrame(animate);
     };
     requestAnimationFrame(animate);
@@ -179,16 +181,46 @@ function RadarDisc({ animate }) {
 // ============================================================================
 
 function StatsStrip({ animate }) {
-  const fuelSaved = useAnimatedCounter(4.7, 2000, animate);
-  const co2Avoided = useAnimatedCounter(2847, 2200, animate);
-  const pairs = useAnimatedCounter(156, 1800, animate);
-  const confidence = useAnimatedCounter(94, 2000, animate);
+  // Marketing metrics (landing page)
+  // - 300k flights optimized -> ~150k formation pairs (2 flights per pair)
+  // - 4% fuel savings applied to the follower aircraft (~150k saving flights)
+  // - CO2: assumes ~400 kg fuel saved/flight and 3.16 kg CO2 per kg fuel
+  const fuelSavedPct = useAnimatedCounter(4, 2000, animate);
+  const flightsOptimized = useAnimatedCounter(300_000, 1800, animate);
+  const flightsSearched = useAnimatedCounter(1_500_000, 2000, animate);
+  const co2AvoidedKg = useAnimatedCounter(400_000_000, 2200, animate);
+
+  const fmtCompact = (n) =>
+    new Intl.NumberFormat("en", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(n);
 
   const stats = [
-    { label: 'Fuel Saved', value: `${fuelSaved.toFixed(1)}%`, sub: '~1,200 kg', color: '#ffffff' },
-    { label: 'CO₂ Avoided', value: co2Avoided.toLocaleString(), sub: 'kg per pair', color: '#ffffff' },
-    { label: 'Flight Pairs', value: pairs, sub: 'matched today', color: '#ffffff' },
-    { label: 'Confidence', value: `${confidence}%`, sub: 'avg. score', color: '#ffffff' },
+    {
+      label: "Fuel Saved",
+      value: `${Math.round(fuelSavedPct)}%`,
+      sub: "per aircraft",
+      color: "#ffffff",
+    },
+    {
+      label: "CO₂ can be avoided",
+      value: `${fmtCompact(co2AvoidedKg)} kg`,
+      sub: "and so much more...",
+      color: "#ffffff",
+    },
+    {
+      label: "Flights Searched",
+      value: `${fmtCompact(flightsSearched)}+`,
+      sub: "candidates evaluated",
+      color: "#ffffff",
+    },
+    {
+      label: "Flights Optimized",
+      value: `${fmtCompact(flightsOptimized)}+`,
+      sub: "≈150k formation pairs",
+      color: "#ffffff",
+    },
   ];
 
   return (
