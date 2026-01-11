@@ -133,7 +133,8 @@ body {
   height: auto;
   object-fit: contain;
   animation: logo-main-animation 3s ease-in-out infinite;
-  filter: drop-shadow(0 10px 30px rgba(15, 23, 42, 0.15));
+  filter: brightness(0);
+  opacity: 0.85;
   position: relative;
   z-index: 10;
 }
@@ -322,4 +323,13 @@ body {
     transform: translate(-50%, -50%) rotate(630deg) translateX(180px) rotate(-630deg);
     opacity: 0.5;
   }
+}
+
+/* Heatmap switch light mode styling */
+.heatmap-switch-light button[data-state="unchecked"] [data-radix-switch-thumb] {
+  background-color: rgb(203 213 225) !important; /* slate-300 */
+}
+
+.heatmap-switch-light button[data-state="checked"] [data-radix-switch-thumb] {
+  background-color: rgb(71 85 105) !important; /* slate-600 dark grey */
 }
