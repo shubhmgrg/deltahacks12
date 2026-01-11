@@ -21,7 +21,7 @@ export async function getScenario(matchId, signal) {
     return scenarioCache.get(matchId);
   }
 
-  const data = await apiRequest(`/scenarios/${matchId}`, {
+  const data = await apiRequest(`/api/scenarios/${matchId}`, {
     signal,
     mockPath: `scenario_${matchId}.json`,
   });

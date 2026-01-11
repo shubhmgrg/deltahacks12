@@ -37,8 +37,9 @@ import { formatNumber, formatCO2, formatDistance } from "@/lib/utils";
 
 // Route colors
 const COLORS = {
-  routeA: "#6366f1", // Indigo
-  routeB: "#8b5cf6", // Purple
+  // Make both flight paths white; keep formation neon green.
+  routeA: "#ffffff",
+  routeB: "#ffffff",
   formation: "#22c55e", // Green (neon for formation)
   formationGlow: "#4ade80",
   connector: "#f59e0b", // Amber
@@ -309,7 +310,11 @@ export default function MapScene({
               "icon-image": iconsLoaded.current.follower
                 ? "planeFollower"
                 : "planeLeader",
+<<<<<<< HEAD
               "icon-size": 0.05, // Smaller size
+=======
+              "icon-size": 0.04,
+>>>>>>> refs/remotes/origin/heatmap_setup
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
@@ -317,7 +322,7 @@ export default function MapScene({
               "icon-offset": [10, 10], // Default offset for non-LOCKED phases
             },
             paint: {
-              "icon-opacity": 0.65, // Default opacity
+              "icon-opacity": 1, // Default opacity
             },
           };
           // Add at end (no beforeLayerId) so planes render on top of connector lines
@@ -329,8 +334,13 @@ export default function MapScene({
             type: "circle",
             source: "follower-plane",
             paint: {
+<<<<<<< HEAD
               "circle-radius": 20, // Increased from 10
               "circle-color": "#ffffff", // White
+=======
+              "circle-radius": 12,
+              "circle-color": COLORS.routeB,
+>>>>>>> refs/remotes/origin/heatmap_setup
               "circle-stroke-width": 3,
               "circle-stroke-color": "#000000", // Black stroke for contrast
               "circle-opacity": 1.0,
@@ -349,12 +359,17 @@ export default function MapScene({
             source: "leader-plane",
             layout: {
               "icon-image": "planeLeader",
+<<<<<<< HEAD
               "icon-size": 0.05, // Smaller size
+=======
+              "icon-size": 0.05,
+>>>>>>> refs/remotes/origin/heatmap_setup
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
               "icon-ignore-placement": true,
             },
+            paint: { "icon-opacity": 1 },
           };
           map.current.addLayer(leaderLayerDef, "follower-plane-layer");
         } else {
@@ -364,8 +379,13 @@ export default function MapScene({
             type: "circle",
             source: "leader-plane",
             paint: {
+<<<<<<< HEAD
               "circle-radius": 22, // Increased from 10
               "circle-color": "#ffffff", // White
+=======
+              "circle-radius": 12,
+              "circle-color": COLORS.routeA,
+>>>>>>> refs/remotes/origin/heatmap_setup
               "circle-stroke-width": 3,
               "circle-stroke-color": "#000000", // Black stroke for contrast
             },
