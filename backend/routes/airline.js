@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 
 const router = express.Router();
+const OPTIMIZATION_SERVICE_URL = process.env.OPTIMIZATION_SERVICE_URL || "http://localhost:8001";
 
 // Helper function to calculate angle between two flight paths
 function calculateAngleBetweenPaths(flight1, flight2) {
@@ -397,6 +398,123 @@ router.get("/intersecting-flights", (req, res) => {
       csv_file: csvFilePath
     });
   });
+});
+
+// Optimized endpoint - delegates all processing to Python FastAPI service
+router.get("/optimal-paths", async (req, res) => {
+  console.log("Received request for optimal path calculation");
+  
+  try {
+    // Fetch all flight data with coordinates
+    const flightsQuery = `
+      SELECT 
+        f.flight_id,
+        f.flight_no,
+        f.departure_airport,
+        f.arrival_airport,
+        f.scheduled_departure,
+        f.scheduled_arrival,
+        dep.coordinates as dep_coords,
+        arr.coordinates as arr_coords
+      FROM flights f
+      JOIN airports_data dep ON f.departure_airport = dep.airport_code
+      JOIN airports_data arr ON f.arrival_airport = arr.airport_code
+      WHERE f.departure_airport != f.arrival_airport
+      LIMIT 10000
+    `;
+
+    const flights = await new Promise((resolve, reject) => {
+      db.all(flightsQuery, [], (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+
+    console.log(`Fetched ${flights.length} flights from database`);
+
+    // Parse coordinates helper
+    const parseCoordinates = (coordStr) => {
+      const match = coordStr.match(/\(([^,]+),([^)]+)\)/);
+      if (!match) return null;
+      return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+    };
+
+    // Transform flight data for Python service
+    const rawFlightData = flights.map(flight => {
+      const depCoords = parseCoordinates(flight.dep_coords);
+      const arrCoords = parseCoordinates(flight.arr_coords);
+      
+      if (!depCoords || !arrCoords) return null;
+      
+      return {
+        flight_id: flight.flight_id,
+        flight_no: flight.flight_no,
+        departure_airport: flight.departure_airport,
+        arrival_airport: flight.arrival_airport,
+        scheduled_departure: flight.scheduled_departure,
+        scheduled_arrival: flight.scheduled_arrival,
+        dep_lat: depCoords.lat,
+        dep_lon: depCoords.lon,
+        arr_lat: arrCoords.lat,
+        arr_lon: arrCoords.lon
+      };
+    }).filter(f => f !== null);
+
+    console.log(`Sending ${rawFlightData.length} flights to optimization service`);
+
+    // Call Python FastAPI optimization service with raw flight data
+    const optimizationResponse = await fetch(`${OPTIMIZATION_SERVICE_URL}/optimize-from-raw-flights`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(rawFlightData)
+    });
+
+    if (!optimizationResponse.ok) {
+      const errorText = await optimizationResponse.text();
+      throw new Error(`Optimization service error: ${errorText}`);
+    }
+
+    const result = await optimizationResponse.json();
+
+    // Save results to CSV
+    const csvFilePath = path.join(process.cwd(), 'optimal_paths.csv');
+    const csvHeader = 'Flight_Number,Departure,Arrival,Original_Distance_km,Optimized_Distance_km,Time_Savings_minutes,Boost_Paths_Used,Waypoints_Count\n';
+    
+    const csvRows = result.optimized_paths.map(flight => {
+      return [
+        flight.flight_number,
+        flight.departure_airport,
+        flight.arrival_airport,
+        flight.original_distance.toFixed(2),
+        flight.optimized_distance.toFixed(2),
+        flight.time_savings.toFixed(2),
+        flight.boost_paths_used,
+        flight.waypoints.length
+      ].join(',');
+    }).join('\n');
+
+    fs.writeFileSync(csvFilePath, csvHeader + csvRows, 'utf8');
+    console.log(`\n📊 Optimal paths saved to ${csvFilePath}`);
+    console.log(`Similar pairs found: ${result.similar_pairs}`);
+    console.log(`Intersecting pairs found: ${result.intersecting_pairs}`);
+    console.log(`Total flights optimized: ${result.flights_optimized}`);
+
+    res.json({
+      total_flights: result.total_flights,
+      similar_pairs_found: result.similar_pairs,
+      intersecting_pairs_found: result.intersecting_pairs,
+      total_pairs: result.total_pairs_found,
+      flights_optimized: result.flights_optimized,
+      optimized_paths: result.optimized_paths,
+      csv_file: csvFilePath
+    });
+
+  } catch (error) {
+    console.error('Error in optimal-paths endpoint:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 export default router;
