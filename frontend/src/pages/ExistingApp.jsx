@@ -24,6 +24,7 @@ export default function ExistingApp() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isDemo, setIsDemo] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('offline');
+  const [theme, setTheme] = useState('light'); // 'light' | 'dark'
 
   // Data state - support both API and local fallback
   const [scenarios] = useState(scenariosData);
@@ -255,7 +256,7 @@ export default function ExistingApp() {
   if (!appReady) {
     return (
       <div 
-        className={`fixed inset-0 z-[100] flex items-center justify-center bg-background transition-opacity duration-300 ${
+        className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-50 text-slate-900 transition-opacity duration-300 ${
           fadeOut ? 'opacity-0' : 'opacity-100'
         }`}
       >
@@ -285,7 +286,11 @@ export default function ExistingApp() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden font-sans">
+    <div
+      className={`h-screen flex flex-col overflow-hidden font-sans ${
+        theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+      }`}
+    >
       {/* Top Bar */}
       <TopBar
         activeTab={activeTab}
@@ -294,6 +299,8 @@ export default function ExistingApp() {
         onSavingsPresetChange={setSavingsPreset}
         onDemoMode={handleDemoMode}
         isDemo={isDemo}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
       />
 
       {/* Main Content */}
@@ -313,6 +320,7 @@ export default function ExistingApp() {
           onReplayMatch={handleReplayMatch}
           selectedScenario={selectedScenario}
           savingsPreset={savingsPreset}
+          theme={theme}
           tripParams={{
             from: fromParam,
             to: toParam,
@@ -342,6 +350,7 @@ export default function ExistingApp() {
                 onToggle={setHeatmapEnabled}
                 onDataChange={setHeatmapData}
                 onTimeBucketChange={setHeatmapTimeBucket}
+                theme={theme}
               />
 
               {/* Replay Controls - only show when scenario is selected */}
@@ -361,6 +370,7 @@ export default function ExistingApp() {
                   onFollowCameraToggle={() => setFollowCamera(!followCamera)}
                   speed={playbackSpeed}
                   onSpeedChange={handleSpeedChange}
+                  theme={theme}
                 />
               )}
             </>
@@ -372,6 +382,7 @@ export default function ExistingApp() {
                 handleSelectMatch(match);
               }}
               onReplayMatch={handleReplayMatch}
+              theme={theme}
             />
           )}
         </main>
