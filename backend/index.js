@@ -3,8 +3,7 @@ import { connectDB, getDB } from "./datastore.js";
 import { itemsRouter } from "./routes/items.js";
 
 const app = express();
-// Next dev server defaults to 3000; keep backend on a different default port to avoid conflicts.
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
