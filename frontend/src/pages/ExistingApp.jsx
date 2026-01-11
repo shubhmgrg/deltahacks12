@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import MapScene from '../components/MapScene';
 import DataTable from '../components/DataTable';
 import ReplayControls from '../components/ReplayControls';
+import HeatmapControls from '../components/HeatmapControls';
 import { createReplayController, REPLAY_STATES } from '../lib/replay';
 import { buildPlannedPoints } from '../lib/geo';
 
@@ -38,6 +39,8 @@ export default function ExistingApp() {
   const [compareMode, setCompareMode] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
   const [heatmapMetric, setHeatmapMetric] = useState('co2');
+  const [heatmapData, setHeatmapData] = useState(null);
+  const [heatmapTimeBucket, setHeatmapTimeBucket] = useState(null);
 
   // Filter state
   const [savingsPreset, setSavingsPreset] = useState('expected');
@@ -336,6 +339,17 @@ export default function ExistingApp() {
                 selectedScenario={selectedScenario}
                 replayState={isReplaying ? replayState : null}
                 followCamera={followCamera}
+                heatmapEnabled={heatmapEnabled}
+                heatmapData={heatmapData}
+                heatmapTimeBucket={heatmapTimeBucket}
+              />
+
+              {/* Heatmap Controls */}
+              <HeatmapControls
+                enabled={heatmapEnabled}
+                onToggle={setHeatmapEnabled}
+                onDataChange={setHeatmapData}
+                onTimeBucketChange={setHeatmapTimeBucket}
                 theme={theme}
               />
 
