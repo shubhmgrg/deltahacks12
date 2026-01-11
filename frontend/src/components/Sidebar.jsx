@@ -35,7 +35,7 @@ import { Label } from './ui/label';
 import { getOptimalDepartureTime } from '../api/optimal-departure';
 
 // Optimal Departure Results Component
-function OptimalDepartureResults({ theme, data }) {
+function OptimalDepartureResults({ theme, data, onReplay }) {
   const isDark = theme === 'dark';
   
   if (!data || !data.route) return null;
@@ -53,6 +53,10 @@ function OptimalDepartureResults({ theme, data }) {
 
   const timeOffset = route.time_offset_minutes || 0;
   const offsetDisplay = timeOffset > 0 ? `+${timeOffset.toFixed(0)}` : timeOffset.toFixed(0);
+  
+  // Check if we have a partner flight (can replay)
+  const canReplay = data.connections?.followed_flight_id && data.connections?.partner_flight_paths && 
+                     Object.keys(data.connections.partner_flight_paths).length > 0;
 
   return (
     <Accordion type="single" collapsible className="w-full">
@@ -123,14 +127,32 @@ function OptimalDepartureResults({ theme, data }) {
         {/* Savings Info */}
         {data.cost_analysis && (
           <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
-            <div className={`text-xs uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Estimated Savings
-            </div>
-            <div className={`text-lg font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-              {data.cost_analysis.savings_percent?.toFixed(2) || '0.00'}%
-            </div>
-            <div className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {data.connections?.total_partners || 0} formation partners
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className={`text-xs uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Estimated Savings
+                </div>
+                <div className={`text-lg font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                  {data.cost_analysis.savings_percent?.toFixed(2) || '0.00'}%
+                </div>
+                <div className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {data.connections?.total_partners || 0} formation partners
+                </div>
+              </div>
+              {canReplay && onReplay && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-8 w-8 p-0 ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-slate-100 hover:text-slate-900'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReplay();
+                  }}
+                  title="Replay flight simulation"
+                >
+                  <Play className={`w-4 h-4 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -299,6 +321,7 @@ export default function Sidebar({
   preloadedTimeBuckets = [],
   optimalDepartureData = null,
   onOptimalDepartureLoad = null,
+  onOptimalDepartureReplay = null,
 }) {
   const isDark = theme === 'dark';
   
@@ -793,6 +816,7 @@ export default function Sidebar({
               <OptimalDepartureResults
                 theme={theme}
                 data={optimalData}
+                onReplay={onOptimalDepartureReplay}
               />
             )}
           </>

@@ -6,6 +6,7 @@ import DataTable from "../components/DataTable";
 import ReplayControls from "../components/ReplayControls";
 import { createReplayController, REPLAY_STATES } from "../lib/replay";
 import { buildPlannedPoints } from "../lib/geo";
+import { convertOptimalDepartureToScenario } from "../lib/optimalDepartureToScenario";
 
 // Import demo data (fallback)
 import scenariosData from "../data/scenarios.json";
@@ -305,11 +306,42 @@ export default function ExistingApp() {
     setOptimalDepartureData(null);
     setActiveTab("map"); // Switch to map tab early to show loading
     
+    // Clear existing selection
+    setSelectedMatch(null);
+    setSelectedScenario(null);
+    
+    // Stop any existing replay
+    if (replayController.current) {
+      replayController.current.stop();
+      replayController.current.destroy();
+      replayController.current = null;
+    }
+    
+    setReplayState({
+      isPlaying: false,
+      progress: 0,
+      phase: REPLAY_STATES.IDLE,
+      leaderPosition: null,
+      followerPosition: null,
+      accumulatedFuel: 0,
+      accumulatedCO2: 0,
+      isLocked: false,
+      showConnector: false,
+    });
+    setIsReplaying(false);
+    
     try {
       console.log("Loading optimal departure time with params:", params);
       const result = await getOptimalDepartureTime(params);
       console.log("Optimal departure result:", result);
       setOptimalDepartureData(result);
+      
+      // Convert to scenario format if possible
+      const scenario = convertOptimalDepartureToScenario(result);
+      if (scenario) {
+        setSelectedScenario(scenario);
+        console.log("Converted optimal departure to scenario:", scenario);
+      }
     } catch (error) {
       console.error("Failed to load optimal departure time:", error);
       alert("Failed to calculate optimal departure time. Please check your connection and try again. Error: " + (error.message || "Unknown error"));
@@ -317,6 +349,45 @@ export default function ExistingApp() {
       setOptimalDepartureLoading(false);
     }
   }, []);
+
+  // Handle replay for optimal departure scenario
+  const handleReplayOptimalDeparture = useCallback(() => {
+    if (!selectedScenario || !selectedScenario.id?.startsWith('optimal-departure-')) {
+      return;
+    }
+
+    setActiveTab("map");
+
+    // Small delay to ensure scenario is loaded
+    setTimeout(() => {
+      if (!selectedScenario) return;
+
+      // Clean up existing controller
+      if (replayController.current) {
+        replayController.current.destroy();
+      }
+
+      // Create new replay controller
+      replayController.current = createReplayController(selectedScenario, {
+        speedMultiplier: playbackSpeed,
+        onUpdate: (state) => {
+          setReplayState(state);
+        },
+        onPhaseChange: (phase) => {
+          console.log("Phase changed:", phase);
+        },
+        onComplete: () => {
+          setReplayState((prev) => ({
+            ...prev,
+            isPlaying: false,
+          }));
+        },
+      });
+
+      setIsReplaying(true);
+      replayController.current.play();
+    }, 100);
+  }, [selectedScenario, playbackSpeed]);
 
   if (!appReady) {
     return (
@@ -401,6 +472,7 @@ export default function ExistingApp() {
           preloadedTimeBuckets={preloadedTimeBuckets}
           optimalDepartureData={{ data: optimalDepartureData, loading: optimalDepartureLoading }}
           onOptimalDepartureLoad={handleOptimalDepartureLoad}
+          onOptimalDepartureReplay={handleReplayOptimalDeparture}
         />
 
         {/* Main View */}
