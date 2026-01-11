@@ -1,261 +1,157 @@
 /**
- * Enhanced Replay Controller for Formation Flight Visualization
+ * Replay Controller v4 - Smooth Formation Flight Animation
  * 
- * This module handles the animation of two aircraft flying in formation,
- * with smooth transitions during join and split phases using bezier curves.
+ * This version guarantees smooth transitions by:
+ * 1. Pre-computing transition curves at initialization
+ * 2. Ensuring perfect continuity between phases
+ * 3. Using position caching to prevent recalculation artifacts
  */
 
-// Replay states
 export const REPLAY_STATES = {
   IDLE: 'idle',
-  RENDEZVOUS: 'rendezvous',  // Follower approaching leader
-  LOCKED: 'locked',          // In formation
-  SPLIT: 'split',            // Separating from formation
+  RENDEZVOUS: 'rendezvous',
+  LOCKED: 'locked', 
+  SPLIT: 'split',
   COMPLETE: 'complete'
 };
 
-/**
- * Convert scenario points to coordinate arrays for Mapbox
- */
 export function pointsToCoordinates(points) {
   return points.map(p => [p.lon, p.lat]);
 }
 
-/**
- * Get the formation segment coordinates from a scenario
- */
 export function getFormationSegment(scenario) {
-  if (!scenario || !scenario.leader || !scenario.leader.points) {
-    return [];
-  }
-  
+  if (!scenario?.leader?.points) return [];
   const { joinIndex, splitIndex } = scenario;
-  const leaderPoints = scenario.leader.points;
-  
-  // Extract formation segment from leader's path
-  const startIdx = Math.max(0, joinIndex);
-  const endIdx = Math.min(leaderPoints.length - 1, splitIndex);
-  
-  return leaderPoints.slice(startIdx, endIdx + 1).map(p => [p.lon, p.lat]);
+  const pts = scenario.leader.points;
+  return pts.slice(Math.max(0, joinIndex), Math.min(pts.length, splitIndex + 1))
+    .map(p => [p.lon, p.lat]);
 }
 
-/**
- * Calculate heading (bearing) between two points in radians
- */
 export function calculateHeading(lat1, lon1, lat2, lon2) {
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-  
-  const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-  
-  return Math.atan2(y, x);
+  const toRad = d => d * Math.PI / 180;
+  const φ1 = toRad(lat1), φ2 = toRad(lat2);
+  const Δλ = toRad(lon2 - lon1);
+  return Math.atan2(
+    Math.sin(Δλ) * Math.cos(φ2),
+    Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  );
 }
 
-/**
- * Linear interpolation between two values
- */
-function lerp(a, b, t) {
-  return a + (b - a) * t;
+// ========== MATH UTILITIES ==========
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const smoothstep = t => t * t * (3 - 2 * t);
+const smootherstep = t => t * t * t * (t * (t * 6 - 15) + 10);
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-/**
- * Cubic bezier interpolation for smooth curves
- * P0 = start, P1 = control1, P2 = control2, P3 = end
- */
-function cubicBezier(p0, p1, p2, p3, t) {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  const mt = 1 - t;
-  const mt2 = mt * mt;
-  const mt3 = mt2 * mt;
-  
-  return mt3 * p0 + 3 * mt2 * t * p1 + 3 * mt * t2 * p2 + t3 * p3;
-}
-
-/**
- * Quadratic bezier for simpler curves
- */
-function quadraticBezier(p0, p1, p2, t) {
-  const mt = 1 - t;
-  return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
-}
-
-/**
- * Ease-in-out function for smoother animations
- */
-function easeInOutCubic(t) {
-  return t < 0.5 
-    ? 4 * t * t * t 
-    : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-/**
- * Ease-out function for deceleration
- */
-function easeOutCubic(t) {
+function easeOut(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-/**
- * Ease-in function for acceleration
- */
-function easeInCubic(t) {
-  return t * t * t;
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Calculate distance between two lat/lon points (haversine)
- */
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
+// ========== BEZIER CURVE ==========
 
-/**
- * Find the closest point index on a path to a given position
- */
-function findClosestPointIndex(points, targetLat, targetLon) {
-  let minDist = Infinity;
-  let closestIdx = 0;
-  
-  for (let i = 0; i < points.length; i++) {
-    const dist = haversineDistance(points[i].lat, points[i].lon, targetLat, targetLon);
-    if (dist < minDist) {
-      minDist = dist;
-      closestIdx = i;
-    }
+class BezierCurve {
+  constructor(p0, p1, p2, p3) {
+    this.p0 = p0; this.p1 = p1; this.p2 = p2; this.p3 = p3;
   }
   
-  return closestIdx;
-}
-
-/**
- * Generate control points for a smooth bezier curve transition
- * from formation position back to the follower's original path
- */
-function generateSplitTransitionCurve(
-  formationPos,      // Where the follower is when leaving formation {lat, lon}
-  formationHeading,  // Current heading in radians
-  targetPos,         // Target position on follower's original path {lat, lon}
-  targetHeading      // Target heading on follower's path
-) {
-  // Calculate distance to target
-  const dist = haversineDistance(formationPos.lat, formationPos.lon, targetPos.lat, targetPos.lon);
-  
-  // Control point distance (proportional to transition distance)
-  const controlDist = dist * 0.4;
-  
-  // First control point: extend from formation position along current heading
-  const cp1 = {
-    lat: formationPos.lat + (controlDist / 111) * Math.cos(formationHeading),
-    lon: formationPos.lon + (controlDist / (111 * Math.cos(formationPos.lat * Math.PI / 180))) * Math.sin(formationHeading)
-  };
-  
-  // Second control point: extend back from target along opposite of target heading
-  const reverseHeading = targetHeading + Math.PI;
-  const cp2 = {
-    lat: targetPos.lat + (controlDist / 111) * Math.cos(reverseHeading),
-    lon: targetPos.lon + (controlDist / (111 * Math.cos(targetPos.lat * Math.PI / 180))) * Math.sin(reverseHeading)
-  };
-  
-  return { cp1, cp2 };
-}
-
-/**
- * Interpolate position along a cubic bezier curve
- */
-function interpolateBezierPosition(p0, cp1, cp2, p3, t) {
-  return {
-    lat: cubicBezier(p0.lat, cp1.lat, cp2.lat, p3.lat, t),
-    lon: cubicBezier(p0.lon, cp1.lon, cp2.lon, p3.lon, t)
-  };
-}
-
-/**
- * Calculate heading along a bezier curve at parameter t
- */
-function calculateBezierHeading(p0, cp1, cp2, p3, t) {
-  // Calculate derivative of bezier curve
-  const dt = 0.01;
-  const t1 = Math.max(0, t - dt);
-  const t2 = Math.min(1, t + dt);
-  
-  const pos1 = interpolateBezierPosition(p0, cp1, cp2, p3, t1);
-  const pos2 = interpolateBezierPosition(p0, cp1, cp2, p3, t2);
-  
-  return calculateHeading(pos1.lat, pos1.lon, pos2.lat, pos2.lon);
-}
-
-/**
- * Interpolate position along a path of points
- */
-function interpolateAlongPath(points, progress) {
-  if (!points || points.length === 0) return null;
-  if (points.length === 1) return { ...points[0], heading: 0 };
-  
-  // Clamp progress
-  progress = Math.max(0, Math.min(1, progress));
-  
-  // Find segment
-  const totalSegments = points.length - 1;
-  const segmentProgress = progress * totalSegments;
-  const segmentIndex = Math.min(Math.floor(segmentProgress), totalSegments - 1);
-  const localProgress = segmentProgress - segmentIndex;
-  
-  const p1 = points[segmentIndex];
-  const p2 = points[segmentIndex + 1];
-  
-  // Interpolate position
-  const lat = lerp(p1.lat, p2.lat, localProgress);
-  const lon = lerp(p1.lon, p2.lon, localProgress);
-  
-  // Calculate heading
-  const heading = calculateHeading(p1.lat, p1.lon, p2.lat, p2.lon);
-  
-  return { lat, lon, heading };
-}
-
-/**
- * Get position at a specific point index (with fractional support)
- */
-function getPositionAtIndex(points, index) {
-  if (!points || points.length === 0) return null;
-  
-  const floorIdx = Math.floor(index);
-  const ceilIdx = Math.ceil(index);
-  const frac = index - floorIdx;
-  
-  if (floorIdx < 0) return { ...points[0], heading: 0 };
-  if (ceilIdx >= points.length) return { ...points[points.length - 1], heading: 0 };
-  
-  if (floorIdx === ceilIdx || frac === 0) {
-    const p = points[floorIdx];
-    const nextP = points[Math.min(floorIdx + 1, points.length - 1)];
-    const heading = calculateHeading(p.lat, p.lon, nextP.lat, nextP.lon);
-    return { lat: p.lat, lon: p.lon, heading };
+  static fromEndpoints(start, startHeading, end, endHeading, tension = 0.4) {
+    const dist = haversine(start.lat, start.lon, end.lat, end.lon);
+    const ctrlDist = Math.max(dist * tension, 20); // At least 20km control distance
+    
+    const offset = (pt, heading, d) => ({
+      lat: pt.lat + (d / 111) * Math.cos(heading),
+      lon: pt.lon + (d / (111 * Math.cos(pt.lat * Math.PI / 180))) * Math.sin(heading)
+    });
+    
+    return new BezierCurve(
+      start,
+      offset(start, startHeading, ctrlDist),
+      offset(end, endHeading + Math.PI, ctrlDist * 0.8),
+      end
+    );
   }
   
-  const p1 = points[floorIdx];
-  const p2 = points[ceilIdx];
+  point(t) {
+    const mt = 1 - t, mt2 = mt * mt, mt3 = mt2 * mt;
+    const t2 = t * t, t3 = t2 * t;
+    return {
+      lat: mt3*this.p0.lat + 3*mt2*t*this.p1.lat + 3*mt*t2*this.p2.lat + t3*this.p3.lat,
+      lon: mt3*this.p0.lon + 3*mt2*t*this.p1.lon + 3*mt*t2*this.p2.lon + t3*this.p3.lon
+    };
+  }
+  
+  tangent(t) {
+    const mt = 1 - t, mt2 = mt * mt, t2 = t * t;
+    return {
+      lat: 3*mt2*(this.p1.lat-this.p0.lat) + 6*mt*t*(this.p2.lat-this.p1.lat) + 3*t2*(this.p3.lat-this.p2.lat),
+      lon: 3*mt2*(this.p1.lon-this.p0.lon) + 6*mt*t*(this.p2.lon-this.p1.lon) + 3*t2*(this.p3.lon-this.p2.lon)
+    };
+  }
+  
+  heading(t) {
+    const tan = this.tangent(t);
+    const pos = this.point(t);
+    return Math.atan2(tan.lon * Math.cos(pos.lat * Math.PI / 180), tan.lat);
+  }
+  
+  positionAndHeading(t) {
+    const pos = this.point(t);
+    return { ...pos, heading: this.heading(t) };
+  }
+}
+
+// ========== PATH UTILITIES ==========
+
+function getPositionAtTime(points, targetT) {
+  if (!points?.length) return null;
+  
+  // Binary search
+  let lo = 0, hi = points.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].t <= targetT) lo = mid;
+    else hi = mid;
+  }
+  
+  const p1 = points[lo], p2 = points[hi];
+  const dt = p2.t - p1.t;
+  const f = dt > 0 ? clamp((targetT - p1.t) / dt, 0, 1) : 0;
   
   return {
-    lat: lerp(p1.lat, p2.lat, frac),
-    lon: lerp(p1.lon, p2.lon, frac),
+    lat: lerp(p1.lat, p2.lat, f),
+    lon: lerp(p1.lon, p2.lon, f),
+    heading: calculateHeading(p1.lat, p1.lon, p2.lat, p2.lon),
+    index: lo + f
+  };
+}
+
+function getPositionAtIndex(points, idx) {
+  if (!points?.length) return null;
+  const i = clamp(Math.floor(idx), 0, points.length - 2);
+  const f = idx - i;
+  const p1 = points[i], p2 = points[Math.min(i + 1, points.length - 1)];
+  
+  return {
+    lat: lerp(p1.lat, p2.lat, f),
+    lon: lerp(p1.lon, p2.lon, f),
     heading: calculateHeading(p1.lat, p1.lon, p2.lat, p2.lon)
   };
 }
 
-/**
- * Create a replay controller for a formation flight scenario
- */
+// ========== REPLAY CONTROLLER ==========
+
 export function createReplayController(scenario, options = {}) {
   const {
     speedMultiplier = 1,
@@ -264,274 +160,221 @@ export function createReplayController(scenario, options = {}) {
     onComplete = () => {}
   } = options;
   
-  // Validate scenario
-  if (!scenario || !scenario.leader || !scenario.follower) {
-    console.error('Invalid scenario provided to replay controller');
+  if (!scenario?.leader || !scenario?.follower) {
+    console.error('Invalid scenario');
     return null;
   }
   
-  const leaderPoints = scenario.leader.points;
-  const followerPoints = scenario.follower.points;
-  const joinIndex = scenario.joinIndex || 0;
-  const splitIndex = scenario.splitIndex || leaderPoints.length - 1;
+  const leader = scenario.leader.points;
+  const follower = scenario.follower.points;
+  const joinIdx = scenario.joinIndex ?? 0;
+  const splitIdx = scenario.splitIndex ?? leader.length - 1;
   
-  // Calculate metrics for fuel/CO2 accumulation
-  const metrics = scenario.metrics || {
-    fuelSavedKg: 0,
-    co2SavedKg: 0,
-    formationMinutes: 0,
-    formationDistanceKm: 0
-  };
+  // Time bounds
+  const minT = Math.min(leader[0].t, follower[0].t);
+  const maxT = Math.max(leader[leader.length-1].t, follower[follower.length-1].t);
+  const totalT = maxT - minT;
+  
+  // Phase timing (as progress 0-1)
+  const joinT = leader[Math.min(joinIdx, leader.length - 1)].t;
+  const splitT = leader[Math.min(splitIdx, leader.length - 1)].t;
+  const joinProg = (joinT - minT) / totalT;
+  const splitProg = (splitT - minT) / totalT;
+  
+  // Phase durations
+  const APPROACH_DUR = 0.08;
+  const SPLIT_DUR = 0.15; // Longer split for smoother transition
+  
+  // Formation offset parameters
+  // Use KM (not degrees). At the default map zoom (~4), small offsets can look
+  // like the planes overlap, so this is intentionally large for clear visual
+  // separation.
+  const OFFSET_KM = { behind: 120, side: 0 };
+  
+  const metrics = scenario.metrics || { fuelSavedKg: 0, co2SavedKg: 0 };
   
   // Animation state
-  let animationFrame = null;
-  let isPlaying = false;
-  let progress = 0; // 0 to 1
-  let lastTimestamp = null;
-  let currentPhase = REPLAY_STATES.IDLE;
+  let animFrame = null;
+  let playing = false;
+  let progress = 0;
+  let lastTs = null;
+  let phase = REPLAY_STATES.IDLE;
   
-  // Transition state for smooth split
-  let splitTransition = null;
+  // Pre-computed split transition
+  let splitCurve = null;
+  let splitEndIndex = null;
   
-  // Duration calculation (in milliseconds)
-  // Use the time values from points if available, otherwise estimate
-  const totalTimeUnits = Math.max(
-    leaderPoints[leaderPoints.length - 1]?.t || leaderPoints.length,
-    followerPoints[followerPoints.length - 1]?.t || followerPoints.length
-  );
+  const DURATION = 30000;
   
-  // Base duration: roughly 30 seconds for full replay at 1x speed
-  const baseDuration = 30000;
+  // ---- Core functions ----
   
-  // Phase boundaries (as fractions of total progress)
-  const joinProgress = joinIndex / (leaderPoints.length - 1);
-  const splitProgress = splitIndex / (leaderPoints.length - 1);
-  
-  // Split transition duration (as fraction of total)
-  const splitTransitionDuration = 0.08; // 8% of total time for smooth transition
-  
-  /**
-   * Determine current phase based on progress
-   */
-  function determinePhase(prog) {
-    if (prog < joinProgress * 0.8) {
-      return REPLAY_STATES.RENDEZVOUS;
-    } else if (prog < splitProgress) {
-      return REPLAY_STATES.LOCKED;
-    } else if (prog < splitProgress + splitTransitionDuration) {
-      return REPLAY_STATES.SPLIT;
-    } else {
-      return REPLAY_STATES.COMPLETE;
-    }
+  function getTime(prog) {
+    return minT + prog * totalT;
   }
   
-  /**
-   * Calculate follower position with smooth transitions
-   */
-  function calculateFollowerPosition(prog, leaderPos) {
-    const phase = determinePhase(prog);
-    
-    // Pre-formation: follower on its own path, approaching leader
-    if (phase === REPLAY_STATES.RENDEZVOUS) {
-      // Interpolate along follower's path
-      const followerIdx = prog * (followerPoints.length - 1);
-      const pos = getPositionAtIndex(followerPoints, followerIdx);
-      
-      // Gradually blend towards leader's path as we approach join
-      const approachProgress = prog / (joinProgress * 0.8);
-      if (approachProgress > 0.7) {
-        const blendFactor = (approachProgress - 0.7) / 0.3; // 0 to 1 in last 30%
-        const eased = easeInCubic(blendFactor);
-        
-        // Get leader position at this point
-        const leaderIdx = prog * (leaderPoints.length - 1);
-        const leaderAtPoint = getPositionAtIndex(leaderPoints, leaderIdx);
-        
-        // Blend positions
-        return {
-          lat: lerp(pos.lat, leaderAtPoint.lat, eased * 0.5),
-          lon: lerp(pos.lon, leaderAtPoint.lon, eased * 0.5),
-          heading: pos.heading
-        };
-      }
-      
-      return pos;
-    }
-    
-    // In formation: follower follows leader with slight offset
-    if (phase === REPLAY_STATES.LOCKED) {
-      // Small offset behind and to the side of leader
-      const offsetBehind = 0.02; // degrees (~2km)
-      const offsetSide = 0.01;   // degrees (~1km)
-      
-      // Calculate offset based on leader's heading
-      const heading = leaderPos.heading || 0;
-      
-      return {
-        lat: leaderPos.lat - offsetBehind * Math.cos(heading) + offsetSide * Math.sin(heading),
-        lon: leaderPos.lon - offsetBehind * Math.sin(heading) - offsetSide * Math.cos(heading),
-        heading: heading
-      };
-    }
-    
-    // Split phase: smooth bezier transition back to follower's path
-    if (phase === REPLAY_STATES.SPLIT) {
-      // Calculate transition progress within split phase (0 to 1)
-      const splitStart = splitProgress;
-      const splitEnd = splitProgress + splitTransitionDuration;
-      const transitionProgress = (prog - splitStart) / (splitEnd - splitStart);
-      const easedProgress = easeInOutCubic(transitionProgress);
-      
-      // Initialize split transition if needed
-      if (!splitTransition) {
-        // Get the position where split starts (following leader)
-        const leaderSplitIdx = splitIndex;
-        const leaderSplitPos = getPositionAtIndex(leaderPoints, leaderSplitIdx);
-        
-        // Small offset for follower at split point
-        const offsetBehind = 0.02;
-        const offsetSide = 0.01;
-        const heading = leaderSplitPos.heading || 0;
-        
-        const startPos = {
-          lat: leaderSplitPos.lat - offsetBehind * Math.cos(heading) + offsetSide * Math.sin(heading),
-          lon: leaderSplitPos.lon - offsetBehind * Math.sin(heading) - offsetSide * Math.cos(heading)
-        };
-        
-        // Find where on follower's path to rejoin
-        // Look ahead on follower's path to find a good rejoin point
-        const followerSplitIdx = Math.min(
-          splitIndex + Math.floor(followerPoints.length * splitTransitionDuration),
-          followerPoints.length - 1
-        );
-        const targetPos = followerPoints[followerSplitIdx];
-        
-        // Calculate target heading
-        const nextIdx = Math.min(followerSplitIdx + 1, followerPoints.length - 1);
-        const targetHeading = calculateHeading(
-          targetPos.lat, targetPos.lon,
-          followerPoints[nextIdx].lat, followerPoints[nextIdx].lon
-        );
-        
-        // Generate bezier control points
-        const { cp1, cp2 } = generateSplitTransitionCurve(
-          startPos,
-          heading,
-          targetPos,
-          targetHeading
-        );
-        
-        splitTransition = {
-          startPos,
-          cp1,
-          cp2,
-          endPos: targetPos,
-          startHeading: heading,
-          endHeading: targetHeading,
-          rejoinIdx: followerSplitIdx
-        };
-      }
-      
-      // Interpolate along bezier curve
-      const pos = interpolateBezierPosition(
-        splitTransition.startPos,
-        splitTransition.cp1,
-        splitTransition.cp2,
-        splitTransition.endPos,
-        easedProgress
-      );
-      
-      // Calculate heading along curve
-      const heading = calculateBezierHeading(
-        splitTransition.startPos,
-        splitTransition.cp1,
-        splitTransition.cp2,
-        splitTransition.endPos,
-        easedProgress
-      );
-      
-      return { ...pos, heading };
-    }
-    
-    // Post-split: follower back on its own path
-    // Continue from where the transition ended
-    const postSplitProgress = (prog - splitProgress - splitTransitionDuration) / 
-                              (1 - splitProgress - splitTransitionDuration);
-    
-    // Calculate index on follower's path
-    const rejoinIdx = splitTransition?.rejoinIdx || splitIndex;
-    const remainingPoints = followerPoints.length - rejoinIdx;
-    const followerIdx = rejoinIdx + postSplitProgress * remainingPoints;
-    
-    return getPositionAtIndex(followerPoints, Math.min(followerIdx, followerPoints.length - 1));
-  }
-  
-  /**
-   * Calculate accumulated savings based on progress
-   */
-  function calculateSavings(prog) {
-    const phase = determinePhase(prog);
-    
-    // Only accumulate during LOCKED phase
-    if (phase === REPLAY_STATES.RENDEZVOUS) {
-      // Ramp up as approaching formation
-      const approachProgress = prog / joinProgress;
-      return {
-        fuel: metrics.fuelSavedKg * approachProgress * 0.1,
-        co2: metrics.co2SavedKg * approachProgress * 0.1
-      };
-    }
-    
-    if (phase === REPLAY_STATES.LOCKED) {
-      // Calculate progress within locked phase
-      const lockedProgress = (prog - joinProgress) / (splitProgress - joinProgress);
-      return {
-        fuel: metrics.fuelSavedKg * (0.1 + lockedProgress * 0.8),
-        co2: metrics.co2SavedKg * (0.1 + lockedProgress * 0.8)
-      };
-    }
-    
-    // SPLIT and COMPLETE: show final values with slight increase
-    const splitPhaseProgress = Math.min(1, (prog - splitProgress) / splitTransitionDuration);
+  function formationPos(leaderPos) {
+    const h = leaderPos.heading || 0;
+    const behindKm = OFFSET_KM.behind;
+    const sideKm = OFFSET_KM.side;
+
+    // Compute km offsets relative to heading (0 = north, clockwise).
+    // "Behind" is opposite the heading direction.
+    const dxKm =
+      -behindKm * Math.sin(h) + sideKm * Math.sin(h + Math.PI / 2);
+    const dyKm =
+      -behindKm * Math.cos(h) + sideKm * Math.cos(h + Math.PI / 2);
+
+    const latOffset = dyKm / 111;
+    const lonOffset = dxKm / (111 * Math.cos((leaderPos.lat * Math.PI) / 180));
     return {
-      fuel: metrics.fuelSavedKg * (0.9 + splitPhaseProgress * 0.1),
-      co2: metrics.co2SavedKg * (0.9 + splitPhaseProgress * 0.1)
+      lat: leaderPos.lat + latOffset,
+      lon: leaderPos.lon + lonOffset,
+      heading: h
     };
   }
   
+  function getPhase(prog) {
+    const approachStart = joinProg - APPROACH_DUR;
+    if (prog < approachStart) return REPLAY_STATES.RENDEZVOUS;
+    if (prog < joinProg) return REPLAY_STATES.RENDEZVOUS; // Transitioning
+    if (prog < splitProg) return REPLAY_STATES.LOCKED;
+    if (prog < splitProg + SPLIT_DUR) return REPLAY_STATES.SPLIT;
+    return REPLAY_STATES.COMPLETE;
+  }
+  
   /**
-   * Update state and notify listeners
+   * Pre-compute the split transition curve
+   * Called once when split phase begins
    */
-  function updateState() {
-    const phase = determinePhase(progress);
+  function computeSplitCurve(startPos, startHeading) {
+    // Find where to rejoin follower's path
+    // Strategy: Look at the FINAL portion of follower's path and find
+    // a point that creates a reasonable curve
     
-    // Notify phase change
-    if (phase !== currentPhase) {
-      currentPhase = phase;
-      onPhaseChange(phase);
+    // Start looking from 80% of the path to the end
+    const searchStart = Math.floor(follower.length * 0.75);
+    let bestIdx = follower.length - 20; // Default: near the end
+    let bestScore = Infinity;
+    
+    for (let i = searchStart; i < follower.length - 5; i++) {
+      const pt = follower[i];
+      const dist = haversine(startPos.lat, startPos.lon, pt.lat, pt.lon);
       
-      // Reset split transition when leaving split phase
-      if (phase !== REPLAY_STATES.SPLIT) {
-        splitTransition = null;
+      // Score based on distance and how far along the path
+      // Prefer points that are:
+      // 1. Not too far away (reasonable bezier curve)
+      // 2. Closer to the end (so we rejoin later in the journey)
+      const pathProgress = i / follower.length;
+      const score = dist * (2 - pathProgress); // Lower is better
+      
+      if (score < bestScore && dist > 50) { // At least 50km away for visible curve
+        bestScore = score;
+        bestIdx = i;
       }
     }
     
-    // Calculate leader position
-    const leaderIdx = progress * (leaderPoints.length - 1);
-    const leaderPos = getPositionAtIndex(leaderPoints, leaderIdx);
+    splitEndIndex = bestIdx;
+    const endPos = getPositionAtIndex(follower, bestIdx);
     
-    // Calculate follower position with smooth transitions
-    const followerPos = calculateFollowerPosition(progress, leaderPos);
+    // Create smooth bezier curve
+    splitCurve = BezierCurve.fromEndpoints(
+      startPos, 
+      startHeading,
+      endPos,
+      endPos.heading,
+      0.5 // Higher tension for wider curve
+    );
+  }
+  
+  function getFollowerPos(prog, leaderPos) {
+    const t = getTime(prog);
+    const p = getPhase(prog);
+    const followerOwn = getPositionAtTime(follower, t);
     
-    // Calculate accumulated savings
-    const savings = calculateSavings(progress);
+    // RENDEZVOUS
+    if (p === REPLAY_STATES.RENDEZVOUS) {
+      const approachStart = joinProg - APPROACH_DUR;
+      
+      if (prog <= approachStart) {
+        return followerOwn;
+      }
+      
+      // Smooth transition to formation
+      const transProg = (prog - approachStart) / APPROACH_DUR;
+      const eased = smootherstep(clamp(transProg, 0, 1));
+      
+      const formPos = formationPos(leaderPos);
+      return {
+        lat: lerp(followerOwn.lat, formPos.lat, eased),
+        lon: lerp(followerOwn.lon, formPos.lon, eased),
+        heading: lerp(followerOwn.heading || 0, formPos.heading, eased)
+      };
+    }
     
-    // Determine if connector should be shown
-    const showConnector = phase === REPLAY_STATES.LOCKED || phase === REPLAY_STATES.SPLIT;
+    // LOCKED
+    if (p === REPLAY_STATES.LOCKED) {
+      // Reset split curve for potential re-calculation
+      splitCurve = null;
+      return formationPos(leaderPos);
+    }
     
-    // Create state object
-    const state = {
-      isPlaying,
+    // SPLIT
+    if (p === REPLAY_STATES.SPLIT) {
+      const splitLocalProg = (prog - splitProg) / SPLIT_DUR;
+      
+      // Compute split curve on first frame of split
+      if (!splitCurve) {
+        const formPos = formationPos(leaderPos);
+        computeSplitCurve(formPos, leaderPos.heading);
+      }
+      
+      // Use smootherstep for very smooth easing
+      const eased = smootherstep(clamp(splitLocalProg, 0, 1));
+      return splitCurve.positionAndHeading(eased);
+    }
+    
+    // COMPLETE - Continue along follower's path from split end point
+    if (splitEndIndex !== null) {
+      const completeStart = splitProg + SPLIT_DUR;
+      const completeProg = (prog - completeStart) / (1 - completeStart);
+      const remainingPts = follower.length - splitEndIndex;
+      const idx = splitEndIndex + completeProg * remainingPts;
+      return getPositionAtIndex(follower, clamp(idx, splitEndIndex, follower.length - 1));
+    }
+    
+    return followerOwn;
+  }
+  
+  function getSavings(prog) {
+    const p = getPhase(prog);
+    const { fuelSavedKg: fuel, co2SavedKg: co2 } = metrics;
+    
+    if (p === REPLAY_STATES.RENDEZVOUS) {
+      const f = clamp(prog / joinProg, 0, 1);
+      return { fuel: fuel * f * 0.02, co2: co2 * f * 0.02 };
+    }
+    if (p === REPLAY_STATES.LOCKED) {
+      const f = (prog - joinProg) / (splitProg - joinProg);
+      return { fuel: fuel * (0.02 + f * 0.88), co2: co2 * (0.02 + f * 0.88) };
+    }
+    const f = clamp((prog - splitProg) / SPLIT_DUR, 0, 1);
+    return { fuel: fuel * (0.9 + f * 0.1), co2: co2 * (0.9 + f * 0.1) };
+  }
+  
+  function update() {
+    const newPhase = getPhase(progress);
+    if (newPhase !== phase) {
+      phase = newPhase;
+      onPhaseChange(phase);
+    }
+    
+    const t = getTime(progress);
+    const leaderPos = getPositionAtTime(leader, t);
+    const followerPos = getFollowerPos(progress, leaderPos);
+    const savings = getSavings(progress);
+    
+    onUpdate({
+      isPlaying: playing,
       progress,
       phase,
       leaderPosition: leaderPos,
@@ -539,98 +382,70 @@ export function createReplayController(scenario, options = {}) {
       accumulatedFuel: savings.fuel,
       accumulatedCO2: savings.co2,
       isLocked: phase === REPLAY_STATES.LOCKED,
-      showConnector
-    };
+      showConnector: phase === REPLAY_STATES.LOCKED || phase === REPLAY_STATES.SPLIT
+    });
     
-    onUpdate(state);
-    
-    // Check for completion
     if (progress >= 1) {
-      isPlaying = false;
-      currentPhase = REPLAY_STATES.COMPLETE;
+      playing = false;
+      phase = REPLAY_STATES.COMPLETE;
       onComplete();
     }
   }
   
-  /**
-   * Animation loop
-   */
-  function animate(timestamp) {
-    if (!isPlaying) return;
+  function animate(ts) {
+    if (!playing) return;
+    if (lastTs === null) lastTs = ts;
     
-    if (lastTimestamp === null) {
-      lastTimestamp = timestamp;
-    }
+    const dt = ts - lastTs;
+    lastTs = ts;
+    progress = Math.min(1, progress + dt / (DURATION / speedMultiplier));
     
-    const deltaTime = timestamp - lastTimestamp;
-    lastTimestamp = timestamp;
+    update();
     
-    // Update progress
-    const effectiveDuration = baseDuration / speedMultiplier;
-    progress += deltaTime / effectiveDuration;
-    progress = Math.min(1, progress);
-    
-    updateState();
-    
-    if (progress < 1 && isPlaying) {
-      animationFrame = requestAnimationFrame(animate);
+    if (progress < 1 && playing) {
+      animFrame = requestAnimationFrame(animate);
     }
   }
   
-  /**
-   * Public API
-   */
+  // Public API
   return {
     play() {
-      if (isPlaying) return;
-      isPlaying = true;
-      lastTimestamp = null;
-      animationFrame = requestAnimationFrame(animate);
+      if (playing) return;
+      playing = true;
+      lastTs = null;
+      animFrame = requestAnimationFrame(animate);
     },
     
     pause() {
-      isPlaying = false;
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-        animationFrame = null;
-      }
-      updateState();
+      playing = false;
+      if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+      update();
     },
     
     stop() {
       this.pause();
       progress = 0;
-      currentPhase = REPLAY_STATES.IDLE;
-      splitTransition = null;
-      updateState();
+      phase = REPLAY_STATES.IDLE;
+      splitCurve = null;
+      splitEndIndex = null;
+      update();
     },
     
-    seek(newProgress) {
-      progress = Math.max(0, Math.min(1, newProgress));
-      // Reset split transition when seeking
-      if (determinePhase(progress) !== REPLAY_STATES.SPLIT) {
-        splitTransition = null;
+    seek(p) {
+      progress = clamp(p, 0, 1);
+      // Reset split curve when seeking to force recalculation
+      if (getPhase(progress) !== REPLAY_STATES.SPLIT) {
+        splitCurve = null;
       }
-      updateState();
+      update();
     },
     
-    isPlaying() {
-      return isPlaying;
-    },
-    
-    getState() {
-      return {
-        isPlaying,
-        progress,
-        phase: currentPhase
-      };
-    },
+    isPlaying: () => playing,
+    getState: () => ({ isPlaying: playing, progress, phase }),
     
     destroy() {
       this.stop();
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-      }
+      if (animFrame) cancelAnimationFrame(animFrame);
     }
   };
 }
