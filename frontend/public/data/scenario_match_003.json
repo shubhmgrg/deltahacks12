@@ -1,0 +1,62 @@
+{
+  "id": "match_003",
+  "leader": {
+    "callsign": "BAW178",
+    "origin": { "code": "LHR", "lon": -0.4543, "lat": 51.4700 },
+    "destination": { "code": "DXB", "lon": 55.3644, "lat": 25.2532 },
+    "points": [
+      { "t": 0, "lon": -0.4543, "lat": 51.47 },
+      { "t": 90, "lon": 1.5, "lat": 50.8 },
+      { "t": 180, "lon": 4.0, "lat": 50.0 },
+      { "t": 270, "lon": 7.0, "lat": 49.0 },
+      { "t": 360, "lon": 10.5, "lat": 47.8 },
+      { "t": 450, "lon": 14.5, "lat": 46.4 },
+      { "t": 540, "lon": 19.0, "lat": 44.8 },
+      { "t": 630, "lon": 24.0, "lat": 43.0 },
+      { "t": 720, "lon": 29.5, "lat": 41.0 },
+      { "t": 810, "lon": 35.0, "lat": 38.8 },
+      { "t": 900, "lon": 40.5, "lat": 36.4 },
+      { "t": 990, "lon": 45.5, "lat": 33.8 },
+      { "t": 1080, "lon": 50.0, "lat": 31.0 },
+      { "t": 1170, "lon": 53.5, "lat": 28.0 },
+      { "t": 1260, "lon": 55.3644, "lat": 25.2532 }
+    ]
+  },
+  "follower": {
+    "callsign": "AFR662",
+    "origin": { "code": "CDG", "lon": 2.5479, "lat": 49.0097 },
+    "destination": { "code": "DOH", "lon": 51.6138, "lat": 25.2609 },
+    "points": [
+      { "t": 0, "lon": 2.5479, "lat": 49.0097 },
+      { "t": 90, "lon": 4.2, "lat": 48.4 },
+      { "t": 180, "lon": 6.5, "lat": 47.6 },
+      { "t": 270, "lon": 9.5, "lat": 46.6 },
+      { "t": 360, "lon": 13.0, "lat": 45.4 },
+      { "t": 450, "lon": 17.0, "lat": 44.0 },
+      { "t": 540, "lon": 21.5, "lat": 42.4 },
+      { "t": 630, "lon": 26.5, "lat": 40.6 },
+      { "t": 720, "lon": 32.0, "lat": 38.6 },
+      { "t": 810, "lon": 37.5, "lat": 36.4 },
+      { "t": 900, "lon": 42.5, "lat": 34.0 },
+      { "t": 990, "lon": 47.0, "lat": 31.4 },
+      { "t": 1080, "lon": 50.5, "lat": 28.6 },
+      { "t": 1170, "lon": 51.3, "lat": 26.5 },
+      { "t": 1260, "lon": 51.6138, "lat": 25.2609 }
+    ]
+  },
+  "joinIndex": 4,
+  "splitIndex": 12,
+  "metrics": {
+    "formationMinutes": 198,
+    "formationDistanceKm": 2950,
+    "detourKm": 52,
+    "fuelSavedKg": 3200,
+    "co2SavedKg": 10080
+  },
+  "assumptions": {
+    "scenario": "expected",
+    "savingsRate": 0.05,
+    "spacingBehindKm": 1.5,
+    "spacingSideKm": 0.3
+  }
+}

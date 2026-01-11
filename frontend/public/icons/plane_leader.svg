@@ -1,0 +1,31 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="leaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Main fuselage (body) -->
+  <ellipse cx="128" cy="128" rx="8" ry="60" fill="url(#leaderGrad)" filter="url(#glow)"/>
+  
+  <!-- Wings -->
+  <ellipse cx="128" cy="128" rx="45" ry="12" fill="url(#leaderGrad)" opacity="0.9"/>
+  
+  <!-- Tail fin -->
+  <path d="M 128 68 L 115 85 L 128 85 Z" fill="url(#leaderGrad)" opacity="0.9"/>
+  
+  <!-- Nose cone highlight -->
+  <ellipse cx="128" cy="88" rx="5" ry="15" fill="#818cf8" opacity="0.6"/>
+  
+  <!-- Engine nacelles (small circles on wings) -->
+  <circle cx="100" cy="125" r="4" fill="#1e293b"/>
+  <circle cx="156" cy="125" r="4" fill="#1e293b"/>
+</svg>

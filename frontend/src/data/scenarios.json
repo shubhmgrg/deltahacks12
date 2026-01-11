@@ -1,0 +1,173 @@
+[
+  {
+    "id": "scenario-1",
+    "title": "Transatlantic Duo - Conservative",
+    "description": "JFK to London Heathrow formation opportunity",
+    "savingsPreset": "conservative",
+    "leader": {
+      "id": "BA117",
+      "label": "BA117",
+      "route": "JFK-LHR",
+      "airline": "British Airways",
+      "aircraft": "Boeing 787-9",
+      "date": "2024-03-15",
+      "points": [
+        {"t": 0, "lon": -73.7781, "lat": 40.6413},
+        {"t": 10, "lon": -72.5, "lat": 41.2},
+        {"t": 20, "lon": -70.0, "lat": 42.5},
+        {"t": 30, "lon": -65.0, "lat": 44.5},
+        {"t": 40, "lon": -58.0, "lat": 47.0},
+        {"t": 50, "lon": -50.0, "lat": 49.5},
+        {"t": 60, "lon": -42.0, "lat": 51.5},
+        {"t": 70, "lon": -34.0, "lat": 52.8},
+        {"t": 80, "lon": -26.0, "lat": 53.5},
+        {"t": 90, "lon": -18.0, "lat": 53.8},
+        {"t": 100, "lon": -10.0, "lat": 53.5},
+        {"t": 110, "lon": -5.0, "lat": 52.5},
+        {"t": 120, "lon": -0.4614, "lat": 51.4700}
+      ]
+    },
+    "follower": {
+      "id": "VS3",
+      "label": "VS3",
+      "route": "JFK-LHR",
+      "airline": "Virgin Atlantic",
+      "aircraft": "Airbus A350-1000",
+      "date": "2024-03-15",
+      "points": [
+        {"t": 0, "lon": -73.7781, "lat": 40.5813},
+        {"t": 10, "lon": -72.3, "lat": 41.0},
+        {"t": 20, "lon": -69.5, "lat": 42.3},
+        {"t": 30, "lon": -64.5, "lat": 44.3},
+        {"t": 40, "lon": -57.5, "lat": 46.8},
+        {"t": 50, "lon": -49.5, "lat": 49.3},
+        {"t": 60, "lon": -41.5, "lat": 51.3},
+        {"t": 70, "lon": -33.5, "lat": 52.6},
+        {"t": 80, "lon": -25.5, "lat": 53.3},
+        {"t": 90, "lon": -17.5, "lat": 53.6},
+        {"t": 100, "lon": -9.8, "lat": 53.3},
+        {"t": 110, "lon": -4.8, "lat": 52.3},
+        {"t": 120, "lon": -0.4514, "lat": 51.4600}
+      ]
+    },
+    "joinIndex": 3,
+    "splitIndex": 9,
+    "metrics": {
+      "formationMinutes": 180,
+      "formationDistanceKm": 3200,
+      "detourKm": 15,
+      "fuelSavedKg": 850,
+      "co2SavedKg": 2680
+    }
+  },
+  {
+    "id": "scenario-2",
+    "title": "Europe Express - Expected",
+    "description": "Frankfurt to Madrid formation opportunity",
+    "savingsPreset": "expected",
+    "leader": {
+      "id": "LH1114",
+      "label": "LH1114",
+      "route": "FRA-MAD",
+      "airline": "Lufthansa",
+      "aircraft": "Airbus A320neo",
+      "date": "2024-03-15",
+      "points": [
+        {"t": 0, "lon": 8.5706, "lat": 50.0333},
+        {"t": 10, "lon": 7.2, "lat": 49.5},
+        {"t": 20, "lon": 5.5, "lat": 48.8},
+        {"t": 30, "lon": 3.5, "lat": 48.0},
+        {"t": 40, "lon": 1.0, "lat": 46.5},
+        {"t": 50, "lon": -1.5, "lat": 44.8},
+        {"t": 60, "lon": -3.0, "lat": 42.5},
+        {"t": 70, "lon": -3.5, "lat": 40.8},
+        {"t": 80, "lon": -3.7038, "lat": 40.4168}
+      ]
+    },
+    "follower": {
+      "id": "IB3615",
+      "label": "IB3615",
+      "route": "FRA-MAD",
+      "airline": "Iberia",
+      "aircraft": "Airbus A320",
+      "date": "2024-03-15",
+      "points": [
+        {"t": 0, "lon": 8.5806, "lat": 50.0433},
+        {"t": 10, "lon": 7.3, "lat": 49.6},
+        {"t": 20, "lon": 5.6, "lat": 48.9},
+        {"t": 30, "lon": 3.6, "lat": 48.1},
+        {"t": 40, "lon": 1.1, "lat": 46.6},
+        {"t": 50, "lon": -1.4, "lat": 44.9},
+        {"t": 60, "lon": -2.9, "lat": 42.6},
+        {"t": 70, "lon": -3.4, "lat": 40.9},
+        {"t": 80, "lon": -3.6938, "lat": 40.4268}
+      ]
+    },
+    "joinIndex": 2,
+    "splitIndex": 6,
+    "metrics": {
+      "formationMinutes": 85,
+      "formationDistanceKm": 980,
+      "detourKm": 8,
+      "fuelSavedKg": 320,
+      "co2SavedKg": 1010
+    }
+  },
+  {
+    "id": "scenario-3",
+    "title": "Pacific Gateway - Optimistic",
+    "description": "Los Angeles to Tokyo formation opportunity",
+    "savingsPreset": "optimistic",
+    "leader": {
+      "id": "NH105",
+      "label": "NH105",
+      "route": "LAX-NRT",
+      "airline": "All Nippon Airways",
+      "aircraft": "Boeing 777-300ER",
+      "date": "2024-03-15",
+      "points": [
+        {"t": 0, "lon": -118.4085, "lat": 33.9416},
+        {"t": 15, "lon": -125.0, "lat": 37.0},
+        {"t": 30, "lon": -135.0, "lat": 42.0},
+        {"t": 45, "lon": -148.0, "lat": 48.0},
+        {"t": 60, "lon": -162.0, "lat": 52.0},
+        {"t": 75, "lon": -175.0, "lat": 53.5},
+        {"t": 90, "lon": 172.0, "lat": 52.0},
+        {"t": 105, "lon": 160.0, "lat": 48.0},
+        {"t": 120, "lon": 150.0, "lat": 44.0},
+        {"t": 135, "lon": 142.0, "lat": 38.5},
+        {"t": 150, "lon": 140.3929, "lat": 35.7720}
+      ]
+    },
+    "follower": {
+      "id": "JL61",
+      "label": "JL61",
+      "route": "LAX-NRT",
+      "airline": "Japan Airlines",
+      "aircraft": "Boeing 787-9",
+      "date": "2024-03-15",
+      "points": [
+        {"t": 0, "lon": -118.4185, "lat": 33.9316},
+        {"t": 15, "lon": -124.8, "lat": 36.8},
+        {"t": 30, "lon": -134.5, "lat": 41.8},
+        {"t": 45, "lon": -147.5, "lat": 47.8},
+        {"t": 60, "lon": -161.5, "lat": 51.8},
+        {"t": 75, "lon": -174.5, "lat": 53.3},
+        {"t": 90, "lon": 172.5, "lat": 51.8},
+        {"t": 105, "lon": 160.5, "lat": 47.8},
+        {"t": 120, "lon": 150.5, "lat": 43.8},
+        {"t": 135, "lon": 142.5, "lat": 38.3},
+        {"t": 150, "lon": 140.4029, "lat": 35.7620}
+      ]
+    },
+    "joinIndex": 2,
+    "splitIndex": 8,
+    "metrics": {
+      "formationMinutes": 320,
+      "formationDistanceKm": 6800,
+      "detourKm": 25,
+      "fuelSavedKg": 2100,
+      "co2SavedKg": 6620
+    }
+  }
+]

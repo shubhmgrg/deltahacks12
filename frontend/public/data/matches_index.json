@@ -1,0 +1,510 @@
+{
+  "matches": [
+    {
+      "id": "match_001",
+      "rank": 1,
+      "leader": {
+        "callsign": "UAL452",
+        "origin": { "code": "JFK", "lon": -73.7781, "lat": 40.6413 },
+        "destination": { "code": "LHR", "lon": -0.4543, "lat": 51.4700 }
+      },
+      "follower": {
+        "callsign": "DAL891",
+        "origin": { "code": "BOS", "lon": -71.0096, "lat": 42.3656 },
+        "destination": { "code": "CDG", "lon": 2.5479, "lat": 49.0097 }
+      },
+      "metrics": {
+        "formationMinutes": 142,
+        "formationDistanceKm": 1840,
+        "detourKm": 45,
+        "fuelSavedKg": 2450,
+        "co2SavedKg": 7720,
+        "score": 94.2
+      },
+      "scenarioId": "match_001",
+      "bbox": [[-74, 40], [3, 52]],
+      "trackAvailable": true
+    },
+    {
+      "id": "match_002",
+      "rank": 2,
+      "leader": {
+        "callsign": "AAL100",
+        "origin": { "code": "LAX", "lon": -118.4085, "lat": 33.9416 },
+        "destination": { "code": "NRT", "lon": 140.3929, "lat": 35.7720 }
+      },
+      "follower": {
+        "callsign": "UAL837",
+        "origin": { "code": "SFO", "lon": -122.3789, "lat": 37.6213 },
+        "destination": { "code": "HND", "lon": 139.7798, "lat": 35.5494 }
+      },
+      "metrics": {
+        "formationMinutes": 285,
+        "formationDistanceKm": 4200,
+        "detourKm": 78,
+        "fuelSavedKg": 4890,
+        "co2SavedKg": 15400,
+        "score": 91.8
+      },
+      "scenarioId": "match_002",
+      "bbox": [[-123, 33], [141, 56]],
+      "trackAvailable": true
+    },
+    {
+      "id": "match_003",
+      "rank": 3,
+      "leader": {
+        "callsign": "BAW178",
+        "origin": { "code": "LHR", "lon": -0.4543, "lat": 51.4700 },
+        "destination": { "code": "DXB", "lon": 55.3644, "lat": 25.2532 }
+      },
+      "follower": {
+        "callsign": "AFR662",
+        "origin": { "code": "CDG", "lon": 2.5479, "lat": 49.0097 },
+        "destination": { "code": "DOH", "lon": 51.6138, "lat": 25.2609 }
+      },
+      "metrics": {
+        "formationMinutes": 198,
+        "formationDistanceKm": 2950,
+        "detourKm": 52,
+        "fuelSavedKg": 3200,
+        "co2SavedKg": 10080,
+        "score": 89.5
+      },
+      "scenarioId": "match_003",
+      "bbox": [[-1, 25], [56, 52]],
+      "trackAvailable": true
+    },
+    {
+      "id": "match_004",
+      "rank": 4,
+      "leader": {
+        "callsign": "DLH456",
+        "origin": { "code": "FRA", "lon": 8.5622, "lat": 50.0379 },
+        "destination": { "code": "SIN", "lon": 103.9915, "lat": 1.3644 }
+      },
+      "follower": {
+        "callsign": "SWR287",
+        "origin": { "code": "ZRH", "lon": 8.5492, "lat": 47.4647 },
+        "destination": { "code": "BKK", "lon": 100.7501, "lat": 13.6900 }
+      },
+      "metrics": {
+        "formationMinutes": 312,
+        "formationDistanceKm": 5100,
+        "detourKm": 95,
+        "fuelSavedKg": 5650,
+        "co2SavedKg": 17800,
+        "score": 87.3
+      },
+      "scenarioId": "match_004",
+      "bbox": [[8, 1], [104, 51]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_005",
+      "rank": 5,
+      "leader": {
+        "callsign": "UAE201",
+        "origin": { "code": "DXB", "lon": 55.3644, "lat": 25.2532 },
+        "destination": { "code": "JFK", "lon": -73.7781, "lat": 40.6413 }
+      },
+      "follower": {
+        "callsign": "QTR007",
+        "origin": { "code": "DOH", "lon": 51.6138, "lat": 25.2609 },
+        "destination": { "code": "IAD", "lon": -77.4558, "lat": 38.9531 }
+      },
+      "metrics": {
+        "formationMinutes": 385,
+        "formationDistanceKm": 6200,
+        "detourKm": 110,
+        "fuelSavedKg": 6800,
+        "co2SavedKg": 21420,
+        "score": 85.9
+      },
+      "scenarioId": "match_005",
+      "bbox": [[-78, 25], [56, 55]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_006",
+      "rank": 6,
+      "leader": {
+        "callsign": "KLM605",
+        "origin": { "code": "AMS", "lon": 4.7639, "lat": 52.3105 },
+        "destination": { "code": "ATL", "lon": -84.4281, "lat": 33.6407 }
+      },
+      "follower": {
+        "callsign": "BAW115",
+        "origin": { "code": "LHR", "lon": -0.4543, "lat": 51.4700 },
+        "destination": { "code": "MIA", "lon": -80.2906, "lat": 25.7959 }
+      },
+      "metrics": {
+        "formationMinutes": 265,
+        "formationDistanceKm": 3850,
+        "detourKm": 68,
+        "fuelSavedKg": 4120,
+        "co2SavedKg": 12980,
+        "score": 84.2
+      },
+      "scenarioId": "match_006",
+      "bbox": [[-85, 25], [5, 53]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_007",
+      "rank": 7,
+      "leader": {
+        "callsign": "SIA321",
+        "origin": { "code": "SIN", "lon": 103.9915, "lat": 1.3644 },
+        "destination": { "code": "SFO", "lon": -122.3789, "lat": 37.6213 }
+      },
+      "follower": {
+        "callsign": "CPA882",
+        "origin": { "code": "HKG", "lon": 113.9185, "lat": 22.3080 },
+        "destination": { "code": "LAX", "lon": -118.4085, "lat": 33.9416 }
+      },
+      "metrics": {
+        "formationMinutes": 410,
+        "formationDistanceKm": 7100,
+        "detourKm": 145,
+        "fuelSavedKg": 7200,
+        "co2SavedKg": 22680,
+        "score": 82.8
+      },
+      "scenarioId": "match_007",
+      "bbox": [[-123, 1], [114, 55]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_008",
+      "rank": 8,
+      "leader": {
+        "callsign": "ANA008",
+        "origin": { "code": "HND", "lon": 139.7798, "lat": 35.5494 },
+        "destination": { "code": "LAX", "lon": -118.4085, "lat": 33.9416 }
+      },
+      "follower": {
+        "callsign": "JAL062",
+        "origin": { "code": "NRT", "lon": 140.3929, "lat": 35.7720 },
+        "destination": { "code": "SFO", "lon": -122.3789, "lat": 37.6213 }
+      },
+      "metrics": {
+        "formationMinutes": 298,
+        "formationDistanceKm": 4450,
+        "detourKm": 82,
+        "fuelSavedKg": 4950,
+        "co2SavedKg": 15590,
+        "score": 81.4
+      },
+      "scenarioId": "match_008",
+      "bbox": [[-123, 33], [141, 56]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_009",
+      "rank": 9,
+      "leader": {
+        "callsign": "AFR084",
+        "origin": { "code": "CDG", "lon": 2.5479, "lat": 49.0097 },
+        "destination": { "code": "LAX", "lon": -118.4085, "lat": 33.9416 }
+      },
+      "follower": {
+        "callsign": "IBE6251",
+        "origin": { "code": "MAD", "lon": -3.5673, "lat": 40.4983 },
+        "destination": { "code": "MIA", "lon": -80.2906, "lat": 25.7959 }
+      },
+      "metrics": {
+        "formationMinutes": 325,
+        "formationDistanceKm": 4800,
+        "detourKm": 98,
+        "fuelSavedKg": 5100,
+        "co2SavedKg": 16065,
+        "score": 79.6
+      },
+      "scenarioId": "match_009",
+      "bbox": [[-119, 25], [3, 50]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_010",
+      "rank": 10,
+      "leader": {
+        "callsign": "QFA12",
+        "origin": { "code": "SYD", "lon": 151.1772, "lat": -33.9399 },
+        "destination": { "code": "LAX", "lon": -118.4085, "lat": 33.9416 }
+      },
+      "follower": {
+        "callsign": "ANZ2",
+        "origin": { "code": "AKL", "lon": 174.7850, "lat": -37.0082 },
+        "destination": { "code": "SFO", "lon": -122.3789, "lat": 37.6213 }
+      },
+      "metrics": {
+        "formationMinutes": 445,
+        "formationDistanceKm": 7800,
+        "detourKm": 165,
+        "fuelSavedKg": 8100,
+        "co2SavedKg": 25515,
+        "score": 77.8
+      },
+      "scenarioId": "match_010",
+      "bbox": [[-123, -38], [175, 38]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_011",
+      "rank": 11,
+      "leader": {
+        "callsign": "THY33",
+        "origin": { "code": "IST", "lon": 28.8141, "lat": 40.9769 },
+        "destination": { "code": "JFK", "lon": -73.7781, "lat": 40.6413 }
+      },
+      "follower": {
+        "callsign": "ELY27",
+        "origin": { "code": "TLV", "lon": 34.8854, "lat": 32.0055 },
+        "destination": { "code": "EWR", "lon": -74.1745, "lat": 40.6895 }
+      },
+      "metrics": {
+        "formationMinutes": 295,
+        "formationDistanceKm": 4350,
+        "detourKm": 88,
+        "fuelSavedKg": 4680,
+        "co2SavedKg": 14742,
+        "score": 76.5
+      },
+      "scenarioId": "match_011",
+      "bbox": [[-75, 32], [35, 50]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_012",
+      "rank": 12,
+      "leader": {
+        "callsign": "ACA855",
+        "origin": { "code": "YYZ", "lon": -79.6306, "lat": 43.6777 },
+        "destination": { "code": "FRA", "lon": 8.5622, "lat": 50.0379 }
+      },
+      "follower": {
+        "callsign": "UAL908",
+        "origin": { "code": "EWR", "lon": -74.1745, "lat": 40.6895 },
+        "destination": { "code": "MUC", "lon": 11.7861, "lat": 48.3537 }
+      },
+      "metrics": {
+        "formationMinutes": 218,
+        "formationDistanceKm": 3100,
+        "detourKm": 62,
+        "fuelSavedKg": 3450,
+        "co2SavedKg": 10868,
+        "score": 75.2
+      },
+      "scenarioId": "match_012",
+      "bbox": [[-80, 40], [12, 52]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_013",
+      "rank": 13,
+      "leader": {
+        "callsign": "SAS945",
+        "origin": { "code": "CPH", "lon": 12.6561, "lat": 55.6180 },
+        "destination": { "code": "ORD", "lon": -87.9073, "lat": 41.9742 }
+      },
+      "follower": {
+        "callsign": "FIN5",
+        "origin": { "code": "HEL", "lon": 24.9633, "lat": 60.3172 },
+        "destination": { "code": "JFK", "lon": -73.7781, "lat": 40.6413 }
+      },
+      "metrics": {
+        "formationMinutes": 242,
+        "formationDistanceKm": 3500,
+        "detourKm": 72,
+        "fuelSavedKg": 3780,
+        "co2SavedKg": 11907,
+        "score": 73.9
+      },
+      "scenarioId": "match_013",
+      "bbox": [[-88, 40], [25, 61]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_014",
+      "rank": 14,
+      "leader": {
+        "callsign": "SAA203",
+        "origin": { "code": "JNB", "lon": 28.2460, "lat": -26.1367 },
+        "destination": { "code": "LHR", "lon": -0.4543, "lat": 51.4700 }
+      },
+      "follower": {
+        "callsign": "ETH501",
+        "origin": { "code": "ADD", "lon": 38.7993, "lat": 8.9779 },
+        "destination": { "code": "FRA", "lon": 8.5622, "lat": 50.0379 }
+      },
+      "metrics": {
+        "formationMinutes": 275,
+        "formationDistanceKm": 4000,
+        "detourKm": 85,
+        "fuelSavedKg": 4280,
+        "co2SavedKg": 13482,
+        "score": 72.1
+      },
+      "scenarioId": "match_014",
+      "bbox": [[-1, -27], [39, 52]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_015",
+      "rank": 15,
+      "leader": {
+        "callsign": "LAN800",
+        "origin": { "code": "SCL", "lon": -70.7853, "lat": -33.3928 },
+        "destination": { "code": "MIA", "lon": -80.2906, "lat": 25.7959 }
+      },
+      "follower": {
+        "callsign": "AVA020",
+        "origin": { "code": "BOG", "lon": -74.1469, "lat": 4.7016 },
+        "destination": { "code": "ATL", "lon": -84.4281, "lat": 33.6407 }
+      },
+      "metrics": {
+        "formationMinutes": 185,
+        "formationDistanceKm": 2650,
+        "detourKm": 55,
+        "fuelSavedKg": 2920,
+        "co2SavedKg": 9198,
+        "score": 70.8
+      },
+      "scenarioId": "match_015",
+      "bbox": [[-85, -34], [-70, 34]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_016",
+      "rank": 16,
+      "leader": {
+        "callsign": "CES586",
+        "origin": { "code": "PVG", "lon": 121.8083, "lat": 31.1443 },
+        "destination": { "code": "LAX", "lon": -118.4085, "lat": 33.9416 }
+      },
+      "follower": {
+        "callsign": "KAL017",
+        "origin": { "code": "ICN", "lon": 126.4505, "lat": 37.4602 },
+        "destination": { "code": "SFO", "lon": -122.3789, "lat": 37.6213 }
+      },
+      "metrics": {
+        "formationMinutes": 352,
+        "formationDistanceKm": 5400,
+        "detourKm": 115,
+        "fuelSavedKg": 5750,
+        "co2SavedKg": 18113,
+        "score": 69.4
+      },
+      "scenarioId": "match_016",
+      "bbox": [[-123, 31], [127, 55]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_017",
+      "rank": 17,
+      "leader": {
+        "callsign": "VOZ1",
+        "origin": { "code": "MEL", "lon": 144.8410, "lat": -37.6690 },
+        "destination": { "code": "SIN", "lon": 103.9915, "lat": 1.3644 }
+      },
+      "follower": {
+        "callsign": "QFA37",
+        "origin": { "code": "SYD", "lon": 151.1772, "lat": -33.9399 },
+        "destination": { "code": "BKK", "lon": 100.7501, "lat": 13.6900 }
+      },
+      "metrics": {
+        "formationMinutes": 228,
+        "formationDistanceKm": 3300,
+        "detourKm": 68,
+        "fuelSavedKg": 3580,
+        "co2SavedKg": 11277,
+        "score": 68.1
+      },
+      "scenarioId": "match_017",
+      "bbox": [[100, -38], [152, 14]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_018",
+      "rank": 18,
+      "leader": {
+        "callsign": "TAP270",
+        "origin": { "code": "LIS", "lon": -9.1359, "lat": 38.7756 },
+        "destination": { "code": "GRU", "lon": -46.4730, "lat": -23.4356 }
+      },
+      "follower": {
+        "callsign": "IBE6825",
+        "origin": { "code": "MAD", "lon": -3.5673, "lat": 40.4983 },
+        "destination": { "code": "EZE", "lon": -58.5358, "lat": -34.8150 }
+      },
+      "metrics": {
+        "formationMinutes": 308,
+        "formationDistanceKm": 4650,
+        "detourKm": 102,
+        "fuelSavedKg": 4980,
+        "co2SavedKg": 15687,
+        "score": 66.7
+      },
+      "scenarioId": "match_018",
+      "bbox": [[-59, -35], [-3, 41]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_019",
+      "rank": 19,
+      "leader": {
+        "callsign": "RAM205",
+        "origin": { "code": "CMN", "lon": -7.5899, "lat": 33.3675 },
+        "destination": { "code": "JFK", "lon": -73.7781, "lat": 40.6413 }
+      },
+      "follower": {
+        "callsign": "TAP201",
+        "origin": { "code": "LIS", "lon": -9.1359, "lat": 38.7756 },
+        "destination": { "code": "EWR", "lon": -74.1745, "lat": 40.6895 }
+      },
+      "metrics": {
+        "formationMinutes": 195,
+        "formationDistanceKm": 2800,
+        "detourKm": 58,
+        "fuelSavedKg": 3120,
+        "co2SavedKg": 9828,
+        "score": 65.3
+      },
+      "scenarioId": "match_019",
+      "bbox": [[-75, 33], [-7, 42]],
+      "trackAvailable": false
+    },
+    {
+      "id": "match_020",
+      "rank": 20,
+      "leader": {
+        "callsign": "VIR45",
+        "origin": { "code": "LHR", "lon": -0.4543, "lat": 51.4700 },
+        "destination": { "code": "LAX", "lon": -118.4085, "lat": 33.9416 }
+      },
+      "follower": {
+        "callsign": "BAW269",
+        "origin": { "code": "LGW", "lon": -0.1821, "lat": 51.1537 },
+        "destination": { "code": "SFO", "lon": -122.3789, "lat": 37.6213 }
+      },
+      "metrics": {
+        "formationMinutes": 338,
+        "formationDistanceKm": 5050,
+        "detourKm": 108,
+        "fuelSavedKg": 5380,
+        "co2SavedKg": 16947,
+        "score": 64.0
+      },
+      "scenarioId": "match_020",
+      "bbox": [[-123, 33], [0, 52]],
+      "trackAvailable": false
+    }
+  ],
+  "meta": {
+    "total": 20,
+    "scenario": "expected",
+    "savingsRate": 0.05,
+    "generatedAt": "2025-01-10T12:00:00Z"
+  }
+}
