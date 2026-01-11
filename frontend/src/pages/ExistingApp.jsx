@@ -252,30 +252,36 @@ export default function ExistingApp() {
 
   if (!appReady) {
     return (
-      <div 
-        className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-50 text-slate-900 transition-opacity duration-300 ${
+      <div
+        className={`fixed inset-0 z-[100] flex items-center justify-center transition-opacity duration-300 ${
           fadeOut ? 'opacity-0' : 'opacity-100'
         }`}
       >
-        <div className="loading-screen-wrapper">
+        {/* Video background for loading screen */}
+        <div className="absolute inset-0">
+          <video
+            src="/2823622-uhd_3840_2160_30fps.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
+
+        <div className="loading-screen-wrapper relative z-10">
           <div className="loading-container">
             {/* Animated glow rings */}
-            <div className="glow-ring glow-ring-1"></div>
-            <div className="glow-ring glow-ring-2"></div>
-            <div className="glow-ring glow-ring-3"></div>
-            
+            <div className="glow-ring glow-ring-1" style={{ borderColor: 'rgba(255, 255, 255, 0.3)' }}></div>
+            <div className="glow-ring glow-ring-2" style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}></div>
+            <div className="glow-ring glow-ring-3" style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }}></div>
+
             {/* Main logo */}
             <img
               src="/transparent%20skysync.png"
               alt="SkySync Loading..."
               className="loading-logo"
             />
-            
-            {/* Rotating particles */}
-            <div className="particle particle-1"></div>
-            <div className="particle particle-2"></div>
-            <div className="particle particle-3"></div>
-            <div className="particle particle-4"></div>
           </div>
         </div>
       </div>

@@ -53,7 +53,7 @@ const Chip = ({ children, variant = "yellow", icon: Icon }) => {
   );
 };
 
-// Progress dots indicator (left side navigation)
+// Progress dots indicator (left side navigation) - theme aware
 const ProgressDots = ({ total, activeIndex }) => (
   <div className="fixed left-8 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-3 z-50">
     {Array.from({ length: total }).map((_, i) => (
@@ -61,28 +61,34 @@ const ProgressDots = ({ total, activeIndex }) => (
         key={i}
         className="w-2 h-2 rounded-full cursor-pointer"
         animate={{
-          backgroundColor: i === activeIndex ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.25)',
           scale: i === activeIndex ? 1.4 : 1,
-          boxShadow: i === activeIndex ? '0 0 12px rgba(255,255,255,0.5)' : '0 0 0px rgba(255,255,255,0)',
         }}
         transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+        style={{
+          backgroundColor: i === activeIndex
+            ? 'var(--dot-active-color)'
+            : 'var(--dot-inactive-color)',
+          boxShadow: i === activeIndex
+            ? '0 0 12px var(--dot-glow-color)'
+            : 'none',
+        }}
       />
     ))}
   </div>
 );
 
 // ============================================================================
-// STORY CONTENT DATA
+// STORY CONTENT DATA - Theme aware content
 // ============================================================================
 
-const storyParagraphs = [
+const getStoryParagraphs = () => [
   {
     id: 1,
     content: (
       <>
-        <span className="text-white font-bold text-[22px] sm:text-[26px] md:text-[28px]">SkySync</span>
+        <span className="text-neutral-900 dark:text-white font-bold text-[22px] sm:text-[26px] md:text-[28px]">SkySync</span>
         <AppBadge />
-        <span className="ml-2 text-amber-300">✦</span>
+        <span className="ml-2 text-amber-500 dark:text-amber-300">✦</span>
         <br />
         <span className="mt-3 block">A climate efficiency simulator for real flight traffic.</span>
       </>
@@ -138,27 +144,26 @@ const storyParagraphs = [
 ];
 
 // ============================================================================
-// STORY PARAGRAPH COMPONENT
+// STORY PARAGRAPH COMPONENT - Theme aware
 // ============================================================================
 
 const StoryParagraph = React.forwardRef(({ children, isActive, reducedMotion }, ref) => {
   return (
     <motion.p
       ref={ref}
-      className="text-[18px] sm:text-[22px] md:text-[26px] leading-[1.4] md:leading-[1.45] font-medium"
+      className="text-[18px] sm:text-[22px] md:text-[26px] leading-[1.4] md:leading-[1.45] font-medium transition-colors duration-300"
       animate={{
         opacity: isActive ? 1 : 0.38,
         y: !reducedMotion && isActive ? -3 : 0,
-        textShadow: !reducedMotion && isActive
-          ? '0 0 60px rgba(255,255,255,0.2), 0 0 120px rgba(147,197,253,0.15)'
-          : '0 0 0px rgba(255,255,255,0)',
       }}
       transition={{
         duration: 0.5,
         ease: [0.4, 0, 0.2, 1],
       }}
       style={{
-        color: isActive ? '#f1f5f9' : '#64748b',
+        color: isActive
+          ? 'var(--text-active-color)'
+          : 'var(--text-inactive-color)',
       }}
     >
       {children}
@@ -178,6 +183,7 @@ export default function StoryLightUpSkySync() {
   const paragraphRefs = useRef([]);
   const containerRef = useRef(null);
   const rafRef = useRef(null);
+  const storyParagraphs = getStoryParagraphs();
 
   // Check for reduced motion preference
   useEffect(() => {
@@ -236,33 +242,15 @@ export default function StoryLightUpSkySync() {
     <section
       ref={containerRef}
       className="relative w-full py-16 md:py-24 overflow-hidden"
+      style={{
+        // CSS custom properties for theme-aware colors
+        '--text-active-color': 'var(--story-text-active)',
+        '--text-inactive-color': 'var(--story-text-inactive)',
+        '--dot-active-color': 'var(--story-dot-active)',
+        '--dot-inactive-color': 'var(--story-dot-inactive)',
+        '--dot-glow-color': 'var(--story-dot-glow)',
+      }}
     >
-      {/* Background GIF */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src="/vidclouds.gif"
-          alt=""
-          className="w-full h-full object-cover"
-        />
-        {/* Dark overlay - matches Hero section */}
-        <div className="absolute inset-0 bg-[#313338]/90" />
-      </div>
-      {/* Subtle radial gradient overlay */}
-      <div
-        className="absolute inset-0 opacity-40"
-        style={{
-          background: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 50%)',
-        }}
-      />
-
-      {/* Secondary ambient glow */}
-      <div
-        className="absolute inset-0 opacity-20"
-        style={{
-          background: 'radial-gradient(ellipse 60% 40% at 80% 80%, rgba(59,130,246,0.1) 0%, transparent 50%)',
-        }}
-      />
-
       {/* Progress dots */}
       <ProgressDots total={storyParagraphs.length} activeIndex={activeIndex} />
 
