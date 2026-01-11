@@ -571,8 +571,12 @@ export default function MapScene({
         ); // Add before route-a-line so it renders behind
       }
 
-      // Heatmap Layer (added before planes so it renders behind them)
+      // Heatmap Layer
+      // NOTE: join/split marker layer was removed, so don't insert relative to it.
       if (!map.current.getLayer("heatmap-layer")) {
+        const beforeId = map.current.getLayer("route-a-line")
+          ? "route-a-line"
+          : undefined;
         map.current.addLayer(
           {
             id: "heatmap-layer",
@@ -659,8 +663,8 @@ export default function MapScene({
               ],
             },
           },
-          "join-split-markers-layer"
-        ); // Add before join-split markers
+          beforeId
+        ); // Add before route lines if possible
       }
 
       // Planes will be created by createPlaneLayers() after icon loading
