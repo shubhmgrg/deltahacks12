@@ -170,7 +170,6 @@ export default function MapScene({
     // Layer Setup Function (Runs on style load)
     const setupLayers = () => {
       if (!map.current) return;
-
       // Load plane icons
       const loadIcons = () => {
         iconsLoaded.current = { leader: false, follower: false };
@@ -370,11 +369,9 @@ export default function MapScene({
       // Set Fog
       try {
         map.current.setFog({
-          color: 'rgb(186, 210, 235)',
-          'high-color': 'rgb(36, 92, 223)',
-          'horizon-blend': 0.02,
-          'space-color': 'rgb(11, 11, 25)',
-          'star-intensity': 0.6,
+          'horizon-blend': 0, // No glow
+          'space-color': '#0a0f1e', // Dark blue-black space
+          'star-intensity': 0.2, // Subtle stars
         });
       } catch (e) { }
 
