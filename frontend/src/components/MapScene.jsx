@@ -309,7 +309,7 @@ export default function MapScene({
               "icon-image": iconsLoaded.current.follower
                 ? "planeFollower"
                 : "planeLeader",
-              "icon-size": 0.25,
+              "icon-size": 0.04,
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
@@ -349,7 +349,7 @@ export default function MapScene({
             source: "leader-plane",
             layout: {
               "icon-image": "planeLeader",
-              "icon-size": 0.3,
+              "icon-size": 0.05,
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
