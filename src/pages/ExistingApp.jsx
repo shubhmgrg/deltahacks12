@@ -192,6 +192,31 @@ export default function ExistingApp() {
     }
   }, []);
 
+  // Clear all routes / selections (best opportunities + any active replay)
+  const handleClearAll = useCallback(() => {
+    setSelectedMatch(null);
+    setSelectedScenario(null);
+
+    if (replayController.current) {
+      replayController.current.stop();
+      replayController.current.destroy();
+      replayController.current = null;
+    }
+
+    setReplayState({
+      isPlaying: false,
+      progress: 0,
+      phase: REPLAY_STATES.IDLE,
+      leaderPosition: null,
+      followerPosition: null,
+      accumulatedFuel: 0,
+      accumulatedCO2: 0,
+      isLocked: false,
+      showConnector: false,
+    });
+    setIsReplaying(false);
+  }, []);
+
   const handleSpeedChange = useCallback((speed) => {
     setPlaybackSpeed(speed);
     // Recreate controller with new speed if currently replaying
@@ -317,6 +342,7 @@ export default function ExistingApp() {
             return: returnParam,
             near: nearParam,
           }}
+          onClearAll={handleClearAll}
         />
 
         {/* Main View */}

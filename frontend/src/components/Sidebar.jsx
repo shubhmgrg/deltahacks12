@@ -523,6 +523,7 @@ export default function Sidebar({
   optimalDepartureData = null,
   onOptimalDepartureLoad = null,
   onOptimalDepartureReplay = null,
+  onClearAll = null,
 }) {
   const isDark = theme === "dark";
 
@@ -1252,6 +1253,21 @@ export default function Sidebar({
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-2 py-2">
+                    {(selectedMatch || selectedScenario || optimalData) &&
+                      onClearAll && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={onClearAll}
+                          className={`w-full mb-2 ${
+                            isDark
+                              ? "border-white/10 bg-slate-800/40 text-slate-100 hover:bg-slate-800"
+                              : "border-slate-200 bg-white text-slate-900 hover:bg-slate-100"
+                          }`}
+                        >
+                          Clear All
+                        </Button>
+                      )}
                     {matches.map((match, index) => (
                       <Card
                         key={match.scenarioId}

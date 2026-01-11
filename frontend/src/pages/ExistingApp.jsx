@@ -395,6 +395,37 @@ export default function ExistingApp() {
     }, 100);
   }, [selectedScenario, playbackSpeed]);
 
+  // Clear all map routes from either Best Opportunities or Optimal Departure
+  const handleClearAll = useCallback(() => {
+    // Clear selections
+    setSelectedMatch(null);
+    setSelectedScenario(null);
+
+    // Clear optimal departure overlays
+    setOptimalDepartureData(null);
+    setOptimalDepartureLoading(false);
+
+    // Stop any existing replay
+    if (replayController.current) {
+      replayController.current.stop();
+      replayController.current.destroy();
+      replayController.current = null;
+    }
+
+    setReplayState({
+      isPlaying: false,
+      progress: 0,
+      phase: REPLAY_STATES.IDLE,
+      leaderPosition: null,
+      followerPosition: null,
+      accumulatedFuel: 0,
+      accumulatedCO2: 0,
+      isLocked: false,
+      showConnector: false,
+    });
+    setIsReplaying(false);
+  }, []);
+
   if (!appReady) {
     return (
       <div
@@ -492,6 +523,7 @@ export default function ExistingApp() {
           }}
           onOptimalDepartureLoad={handleOptimalDepartureLoad}
           onOptimalDepartureReplay={handleReplayOptimalDeparture}
+          onClearAll={handleClearAll}
         />
 
         {/* Main View */}

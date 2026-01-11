@@ -34,6 +34,7 @@ export default function Sidebar({
   selectedScenario,
   savingsPreset,
   tripParams,
+  onClearAll,
 }) {
   const handleFilterChange = (key, value) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -114,6 +115,20 @@ export default function Sidebar({
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {/* Clear All (above Formation Filters) */}
+            {(selectedMatch || selectedScenario) && onClearAll && (
+              <div className="px-4 pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onClearAll}
+                  className="w-full border-white/10 bg-slate-800/40 text-slate-100 hover:bg-slate-800"
+                >
+                  Clear All
+                </Button>
+              </div>
+            )}
+
             {/* Filters Section */}
             <Accordion type="single" collapsible defaultValue="filters">
               <AccordionItem value="filters" className="border-b-0 px-4">
