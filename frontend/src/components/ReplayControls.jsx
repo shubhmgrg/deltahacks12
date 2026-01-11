@@ -32,7 +32,9 @@ export default function ReplayControls({
   speed,
   onSpeedChange,
   isLocked,
+  theme = 'light',
 }) {
+  const isDark = theme === 'dark';
   const getPhaseInfo = () => {
     switch (phase) {
       case REPLAY_STATES.RENDEZVOUS:
@@ -51,7 +53,11 @@ export default function ReplayControls({
 
   return (
     <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20 w-auto px-4">
-      <div className="bg-slate-900/90 backdrop-blur-md rounded-lg shadow-glow border border-white/10 p-5 min-w-[550px]">
+      <div
+        className={`backdrop-blur-md rounded-lg border p-5 min-w-[550px] ${
+          isDark ? 'bg-slate-900/90 border-white/10 text-slate-100' : 'bg-white/95 border-slate-200 text-slate-900'
+        }`}
+      >
         {/* Phase Badge */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -63,24 +69,28 @@ export default function ReplayControls({
               {phaseInfo.label}
             </Badge>
             {isLocked && (
-              <span className="text-xs text-emerald-400 font-mono animate-pulse">
+              <span className={`text-xs font-mono animate-pulse ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                 // FORMATION ACTIVE
               </span>
             )}
           </div>
 
           {/* Live Counters */}
-          <div className="flex items-center gap-6 bg-slate-800/50 px-4 py-1.5 rounded-md border border-white/5">
+          <div
+            className={`flex items-center gap-6 px-4 py-1.5 rounded-md border ${
+              isDark ? 'bg-slate-800/60 border-white/10' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
             <div className="flex items-center gap-2 text-sm">
               <Fuel className="w-3.5 h-3.5 text-amber-500" />
-              <span className="font-mono font-medium text-amber-400">
+              <span className={`font-mono font-medium ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                 {formatNumber(Math.round(accumulatedFuel))} kg
               </span>
             </div>
-            <div className="w-[1px] h-4 bg-white/10" />
+            <div className={`w-[1px] h-4 ${isDark ? 'bg-white/10' : 'bg-slate-300'}`} />
             <div className="flex items-center gap-2 text-sm">
               <Leaf className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="font-mono font-medium text-emerald-400">
+              <span className={`font-mono font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                 {formatCO2(Math.round(accumulatedCO2))}
               </span>
             </div>
@@ -97,9 +107,9 @@ export default function ReplayControls({
             step={0.5}
             className="w-full"
           />
-          <div className="flex justify-between text-[10px] text-slate-500 font-mono tracking-wider mt-2 uppercase">
+          <div className={`flex justify-between text-[10px] font-mono tracking-wider mt-2 uppercase ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             <span>Departure</span>
-            <span className="text-slate-300">{Math.round(progress * 100)}%</span>
+            <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>{Math.round(progress * 100)}%</span>
             <span>Arrival</span>
           </div>
         </div>
@@ -112,7 +122,9 @@ export default function ReplayControls({
               variant="default"
               size="sm"
               onClick={isPlaying ? onPause : onPlay}
-              className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-glow-sm border-0"
+              className={`w-10 h-10 rounded-full text-white border-0 ${
+                isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-700 hover:bg-slate-600'
+              }`}
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4 fill-current" />
@@ -126,15 +138,17 @@ export default function ReplayControls({
               variant="ghost"
               size="sm"
               onClick={onReset}
-              className="w-10 h-10 rounded-full text-slate-400 hover:bg-white/10 hover:text-white"
+              className={`w-10 h-10 rounded-full ${
+                isDark ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
             >
               <RotateCcw className="w-4 h-4" />
             </Button>
           </div>
 
           {/* Speed Control */}
-          <div className="flex items-center gap-3 bg-slate-800/30 rounded-lg p-1 border border-white/5">
-            <span className="text-[10px] text-slate-500 font-mono uppercase pl-2">Speed</span>
+          <div className={`flex items-center gap-3 rounded-lg p-1 border ${isDark ? 'bg-slate-800/40 border-white/10' : 'bg-slate-100 border-slate-200'}`}>
+            <span className={`text-[10px] font-mono uppercase pl-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Speed</span>
             <div className="flex gap-0.5">
               {[0.5, 1, 2, 4].map((s) => (
                 <Button
@@ -142,8 +156,8 @@ export default function ReplayControls({
                   variant="ghost"
                   size="sm"
                   className={`h-7 px-2 text-xs font-mono rounded ${speed === s
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'text-slate-500 hover:text-slate-300'
+                      ? (isDark ? 'bg-slate-700 text-white border border-white/10' : 'bg-white text-slate-900 border border-slate-200')
+                      : (isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900')
                     }`}
                   onClick={() => onSpeedChange(s)}
                 >
@@ -158,8 +172,15 @@ export default function ReplayControls({
             variant="ghost"
             size="sm"
             onClick={onFollowCameraToggle}
-            className={`flex items-center gap-2 h-8 px-3 border border-transparent hover:border-white/10 hover:bg-white/5 transition-all ${followCamera ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-glow-sm' : 'text-slate-500'
-              }`}
+            className={`flex items-center gap-2 h-8 px-3 border border-transparent transition-all ${
+              isDark
+                ? 'hover:border-white/10 hover:bg-white/5'
+                : 'hover:border-slate-200 hover:bg-slate-100'
+            } ${
+              followCamera
+                ? (isDark ? 'text-white bg-white/10 border-white/10' : 'text-slate-900 bg-slate-100 border-slate-200')
+                : (isDark ? 'text-slate-300' : 'text-slate-600')
+            }`}
           >
             {followCamera ? (
               <Video className="w-3.5 h-3.5" />

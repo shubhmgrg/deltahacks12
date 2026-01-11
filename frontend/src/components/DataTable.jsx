@@ -18,7 +18,9 @@ export default function DataTable({
   selectedMatch,
   onSelectMatch,
   onReplayMatch,
+  theme = 'light',
 }) {
+  const isDark = theme === 'dark';
   const [sortConfig, setSortConfig] = useState({
     key: 'rank',
     direction: 'asc',
@@ -63,11 +65,11 @@ export default function DataTable({
   ];
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className={`h-full flex flex-col ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
       {/* Header */}
-      <div className="p-4 border-b">
+      <div className={`p-4 border-b ${isDark ? 'border-white/10' : ''}`}>
         <h2 className="text-xl font-semibold">Formation Opportunities</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className={`text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
           Ranked list of potential formation flight pairings. Click to select, then switch to Map View.
         </p>
       </div>
@@ -75,22 +77,24 @@ export default function DataTable({
       {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 sticky top-0">
+          <thead className={`${isDark ? 'bg-slate-900 sticky top-0' : 'bg-gray-50 sticky top-0'}`}>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="px-4 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-100 transition-colors"
+                  className={`px-4 py-3 text-left text-sm font-medium cursor-pointer transition-colors ${
+                    isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
                   onClick={() => handleSort(col.key)}
                 >
                   <div className="flex items-center">
-                    {col.icon && <col.icon className="w-4 h-4 mr-1 text-gray-400" />}
+                    {col.icon && <col.icon className={`w-4 h-4 mr-1 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />}
                     {col.label}
                     <SortIcon column={col.key} />
                   </div>
                 </th>
               ))}
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+              <th className={`px-4 py-3 text-left text-sm font-medium ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
                 Action
               </th>
             </tr>
@@ -102,8 +106,8 @@ export default function DataTable({
                 className={`
                   border-b cursor-pointer transition-colors
                   ${selectedMatch?.scenarioId === match.scenarioId
-                    ? 'bg-blue-50 hover:bg-blue-100'
-                    : 'hover:bg-gray-50'
+                    ? (isDark ? 'bg-slate-900/60 hover:bg-slate-900' : 'bg-blue-50 hover:bg-blue-100')
+                    : (isDark ? 'hover:bg-slate-900/40' : 'hover:bg-gray-50')
                   }
                 `}
                 onClick={() => onSelectMatch(match)}
@@ -111,14 +115,14 @@ export default function DataTable({
                 <td className="px-4 py-3">
                   <Badge
                     variant={match.rank === 1 ? 'default' : 'secondary'}
-                    className={match.rank === 1 ? 'bg-gradient-to-r from-blue-500 to-purple-500' : ''}
+                    className={match.rank === 1 ? 'bg-slate-700 text-white' : ''}
                   >
                     #{match.rank}
                   </Badge>
                 </td>
                 <td className="px-4 py-3 font-medium">{match.flightA}</td>
                 <td className="px-4 py-3 font-medium">{match.flightB}</td>
-                <td className="px-4 py-3 text-gray-600">{match.routeA}</td>
+                <td className={`px-4 py-3 ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>{match.routeA}</td>
                 <td className="px-4 py-3">
                   <span className="text-blue-600 font-medium">
                     {match.formationMinutes} min
@@ -135,7 +139,7 @@ export default function DataTable({
                     {formatNumber(match.fuelSavedKg)} kg
                   </span>
                 </td>
-                <td className="px-4 py-3 text-gray-600">
+                <td className={`px-4 py-3 ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
                   {formatDistance(match.detourKm)}
                 </td>
                 <td className="px-4 py-3 font-mono text-sm">
