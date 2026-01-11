@@ -19,11 +19,16 @@ export async function getMatches(params = {}, signal) {
     return matchCache.get(cacheKey);
   }
 
-  const data = await apiRequest('/matches', {
+  const raw = await apiRequest('/api/matches', {
     params,
     signal,
     mockPath: 'matches_index.json',
   });
+
+  // Normalize backend vs mock shapes.
+  // - Backend returns: Match[]
+  // - Mock returns: { matches: Match[] }
+  const data = Array.isArray(raw) ? raw : Array.isArray(raw?.matches) ? raw.matches : [];
 
   matchCache.set(cacheKey, data);
   return data;

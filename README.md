@@ -24,6 +24,7 @@ npm run backend:dev
 ### 4) Verify Mongo is reachable
 
 Open:
+
 - `http://localhost:3001/health`
 
 You should see `{ ok: true, mongo: "up" }`.
@@ -38,6 +39,7 @@ npm run dev
 ```
 
 Then open:
+
 - `http://localhost:3000/mock`
 
 # SkyFormation
@@ -72,11 +74,13 @@ A hackathon-ready web app that visualizes V-inspired (offset-echelon) formation 
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    cd DeltaHacks12
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
@@ -84,6 +88,7 @@ A hackathon-ready web app that visualizes V-inspired (offset-echelon) formation 
 3. **Configure Mapbox token**
 
    Create a `.env` file in the project root:
+
    ```
    VITE_MAPBOX_TOKEN=your_mapbox_token_here
    ```
@@ -91,6 +96,7 @@ A hackathon-ready web app that visualizes V-inspired (offset-echelon) formation 
    Get a free token at [mapbox.com](https://mapbox.com)
 
 4. **Start the development server**
+
    ```bash
    npm run dev
    ```
@@ -212,6 +218,7 @@ src/
 ## Formation Flight Physics
 
 The follower aircraft positions itself in an offset-echelon formation:
+
 - **Behind distance**: 12 km (configurable)
 - **Side offset**: 3 km to the right (starboard)
 
