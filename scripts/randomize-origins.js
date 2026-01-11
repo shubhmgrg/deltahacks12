@@ -1,6 +1,16 @@
 import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+// Try to load env vars from common locations:
+// - repo root `.env` (if present)
+// - `backend/.env` (recommended by this repo)
+// - current working directory `.env` (dotenv default)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, "../backend/.env") });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 dotenv.config();
 
 /**
@@ -13,8 +23,16 @@ dotenv.config();
  * - destination field: dest
  */
 async function randomizeOrigins() {
-  const DB_NAME = "flights";
-  const COLLECTION_NAME = "flight_nodes_clone";
+  const cliCollectionName = process.argv[2];
+  const cliDbName = process.argv[3];
+
+  const DB_NAME = cliDbName || process.env.MONGO_DB_NAME || "flights";
+  const PRIMARY_COLLECTION_NAME =
+    cliCollectionName ||
+    process.env.FLIGHT_NODES_COLLECTION ||
+    "flight_nodes_clone";
+  const FALLBACK_COLLECTION_NAME = "flight_nodes";
+  const FLIGHT_ID_FIELD = "flight_id";
   const ORIGIN_FIELD = "origin";
   const DEST_FIELD = "dest";
 
@@ -42,25 +60,109 @@ async function randomizeOrigins() {
     console.log(`Available airports: ${airportCodes.length}`);
     console.log(`Codes: ${airportCodes.join(", ")}\n`);
 
-    const col = db.collection(COLLECTION_NAME);
-    const totalDocs = await col.countDocuments();
-    
-    console.log(`Target: ${DB_NAME}.${COLLECTION_NAME}`);
+    // Auto-select a collection that actually has documents.
+    let collectionName = PRIMARY_COLLECTION_NAME;
+    let col = db.collection(collectionName);
+    let totalDocs = await col.countDocuments();
+
+    if (
+      totalDocs === 0 &&
+      PRIMARY_COLLECTION_NAME !== FALLBACK_COLLECTION_NAME
+    ) {
+      const fallbackCol = db.collection(FALLBACK_COLLECTION_NAME);
+      const fallbackDocs = await fallbackCol.countDocuments();
+      if (fallbackDocs > 0) {
+        console.log(
+          `⚠️  ${DB_NAME}.${PRIMARY_COLLECTION_NAME} is empty; using ${DB_NAME}.${FALLBACK_COLLECTION_NAME} instead.`
+        );
+        collectionName = FALLBACK_COLLECTION_NAME;
+        col = fallbackCol;
+        totalDocs = fallbackDocs;
+      }
+    }
+
+    console.log(`Target: ${DB_NAME}.${collectionName}`);
     console.log(`Found ${totalDocs} documents to update\n`);
     
     if (totalDocs === 0) {
-      console.log("No documents found!");
+      console.log(
+        `No documents found! (Checked ${DB_NAME}.${PRIMARY_COLLECTION_NAME}` +
+          (PRIMARY_COLLECTION_NAME !== FALLBACK_COLLECTION_NAME
+            ? ` and ${DB_NAME}.${FALLBACK_COLLECTION_NAME}`
+            : "") +
+          ")\n" +
+          "Tip: run `node scripts/randomize-origins.js <collectionName> [dbName]` to target a different collection."
+      );
       return;
     }
 
-    console.log("Updating origins (streaming bulk updates)...");
+    console.log(
+      `Updating origins (one random origin per ${FLIGHT_ID_FIELD}, bulk updates)...`
+    );
 
     const batchSize = 1000;
     let updated = 0;
     let bulkOps = [];
 
-    const cursor = col.find(
-      {},
+    // 1) Update docs that have a flight_id: choose ONE origin per flight_id.
+    const flightIdGroupsCursor = col.aggregate([
+      {
+        $match: {
+          [FLIGHT_ID_FIELD]: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: `$${FLIGHT_ID_FIELD}`,
+          dests: { $addToSet: `$${DEST_FIELD}` },
+          docs: { $sum: 1 },
+        },
+      },
+    ]);
+
+    let groupsProcessed = 0;
+    for await (const group of flightIdGroupsCursor) {
+      const dests = Array.isArray(group?.dests) ? group.dests : [];
+      const forbidden = new Set(
+        dests.filter((d) => typeof d === "string" && d.length)
+      );
+
+      // Prefer an origin that won't equal ANY destination for this flight_id.
+      let possibleOrigins = airportCodes.filter((code) => !forbidden.has(code));
+      if (possibleOrigins.length === 0) possibleOrigins = airportCodes;
+
+      const newOrigin =
+        possibleOrigins[Math.floor(Math.random() * possibleOrigins.length)];
+
+      bulkOps.push({
+        updateMany: {
+          filter: { [FLIGHT_ID_FIELD]: group._id },
+          update: { $set: { [ORIGIN_FIELD]: newOrigin } },
+        },
+      });
+
+      groupsProcessed++;
+      if (bulkOps.length >= batchSize) {
+        const res = await col.bulkWrite(bulkOps, { ordered: false });
+        // modifiedCount counts documents, not ops — that's what we want for progress.
+        updated += res.modifiedCount ?? 0;
+        bulkOps = [];
+
+        const progress = ((updated / totalDocs) * 100).toFixed(1);
+        console.log(
+          `  Progress: ${updated}/${totalDocs} (${progress}%) [groups processed: ${groupsProcessed}]`
+        );
+      }
+    }
+
+    // 2) Update docs missing flight_id: fall back to per-document randomization.
+    const noFlightIdCursor = col.find(
+      {
+        $or: [
+          { [FLIGHT_ID_FIELD]: { $exists: false } },
+          { [FLIGHT_ID_FIELD]: null },
+        ],
+      },
       {
         projection: {
           _id: 1,
@@ -69,19 +171,13 @@ async function randomizeOrigins() {
       }
     );
 
-    for await (const doc of cursor) {
+    for await (const doc of noFlightIdCursor) {
       const currentDest = doc?.[DEST_FIELD];
-
-      // Filter out the destination from possible origins (if dest is present)
       const possibleOrigins =
         typeof currentDest === "string" && currentDest.length
           ? airportCodes.filter((code) => code !== currentDest)
           : airportCodes;
-
-      if (possibleOrigins.length === 0) {
-        // Extremely unlikely unless airportCodes only contains currentDest
-        continue;
-      }
+      if (possibleOrigins.length === 0) continue;
 
       const newOrigin =
         possibleOrigins[Math.floor(Math.random() * possibleOrigins.length)];
@@ -94,8 +190,8 @@ async function randomizeOrigins() {
       });
 
       if (bulkOps.length >= batchSize) {
-        await col.bulkWrite(bulkOps, { ordered: false });
-        updated += bulkOps.length;
+        const res = await col.bulkWrite(bulkOps, { ordered: false });
+        updated += res.modifiedCount ?? 0;
         bulkOps = [];
 
         const progress = ((updated / totalDocs) * 100).toFixed(1);
@@ -104,8 +200,8 @@ async function randomizeOrigins() {
     }
 
     if (bulkOps.length) {
-      await col.bulkWrite(bulkOps, { ordered: false });
-      updated += bulkOps.length;
+      const res = await col.bulkWrite(bulkOps, { ordered: false });
+      updated += res.modifiedCount ?? 0;
     }
 
     console.log(`\n✅ Successfully randomized ${updated} origins!`);

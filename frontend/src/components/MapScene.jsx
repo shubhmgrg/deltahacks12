@@ -30,13 +30,15 @@ export default function MapScene({
   replayState,
   followCamera,
   onPopupClose,
+  theme = 'light',
 }) {
+  const isDark = theme === 'dark';
   const mapContainer = useRef(null);
   const map = useRef(null);
   const popup = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [styleLoaded, setStyleLoaded] = useState(0);
-  const [currentStyle, setCurrentStyle] = useState('dark');
+  const [currentStyle, setCurrentStyle] = useState('satellite');
   const [showPopup, setShowPopup] = useState(false);
   const [popupData, setPopupData] = useState(null);
   const lastCameraUpdate = useRef(0);
@@ -69,8 +71,8 @@ export default function MapScene({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: STYLES.dark,
-      center: [-30, 45], // Atlantic centered
+      style: STYLES.satellite,
+      center: [-30, 45],
       zoom: 2,
       pitch: 45,
       bearing: 0,
@@ -84,7 +86,7 @@ export default function MapScene({
       touchPitch: true,
       doubleClickZoom: true,
       keyboard: true,
-      maxPitch: 85,
+      maxPitch: 0,
       // Smoothness settings
       fadeDuration: 300,
       crossSourceCollisions: false,
@@ -370,7 +372,7 @@ export default function MapScene({
       try {
         map.current.setFog({
           'horizon-blend': 0, // No glow
-          'space-color': '#0a0f1e', // Dark blue-black space
+          'space-color': '#eee', // Dark blue-black space
           'star-intensity': 0.2, // Subtle stars
         });
       } catch (e) { }
@@ -626,7 +628,7 @@ export default function MapScene({
     map.current.fitBounds(bounds, {
       padding: { top: 100, bottom: 150, left: 350, right: 50 },
       duration: 2000,
-      pitch: 55,
+      pitch: 0,
       bearing: -20,
       essential: true,
       easing: (t) => 1 - Math.pow(1 - t, 3), // Ease-out cubic for smooth deceleration
@@ -787,11 +789,15 @@ export default function MapScene({
 
       {/* Instructions overlay when no scenario selected */}
       {!selectedScenario && mapLoaded && (
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-sm text-white px-6 py-3 rounded-full text-sm flex items-center gap-3 shadow-lg">
+        <div
+          className={`absolute bottom-8 left-1/2 -translate-x-1/2 backdrop-blur-sm px-6 py-3 rounded-full text-sm flex items-center gap-3 border ${
+            isDark ? 'bg-slate-900/80 text-slate-100 border-white/10' : 'bg-white/90 text-slate-900 border-slate-200'
+          }`}
+        >
           <span className="animate-pulse">Click and drag to rotate the globe</span>
-          <span className="text-gray-400">|</span>
+          <span className={isDark ? 'text-slate-400' : 'text-slate-400'}>|</span>
           <span>Scroll to zoom</span>
-          <span className="text-gray-400">|</span>
+          <span className={isDark ? 'text-slate-400' : 'text-slate-400'}>|</span>
           <span>Select a flight from the sidebar</span>
         </div>
       )}
@@ -802,22 +808,42 @@ export default function MapScene({
       <div className="absolute top-4 left-4 z-10">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="bg-slate-900/80 backdrop-blur-md border-white/10 text-slate-200 hover:bg-slate-800 hover:text-white hover:border-white/20">
+            <Button
+              variant="outline"
+              size="sm"
+              className={`backdrop-blur-md hover:bg-slate-100 ${
+                isDark
+                  ? 'bg-slate-900/80 border-white/10 text-slate-100 hover:bg-slate-800'
+                  : 'bg-white/90 border-slate-200 text-slate-900'
+              }`}
+            >
               <Layers className="w-4 h-4 mr-2" />
               <span className="capitalize font-mono text-xs">{currentStyle.replace('satellite', 'sat')}</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-40 bg-slate-900 border-white/10 text-slate-200">
-            <DropdownMenuItem onClick={() => changeStyle('dark')} className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800">
-              <MapIcon className="w-4 h-4 mr-2 text-slate-400" />
+          <DropdownMenuContent
+            align="start"
+            className={`w-40 ${isDark ? 'bg-slate-900 border-white/10 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}`}
+          >
+            <DropdownMenuItem
+              onClick={() => changeStyle('dark')}
+              className={`cursor-pointer ${isDark ? 'hover:bg-slate-800 focus:bg-slate-800' : 'hover:bg-slate-100 focus:bg-slate-100'}`}
+            >
+              <MapIcon className={`w-4 h-4 mr-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
               <span>Dark Mode</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => changeStyle('satellite')} className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800">
-              <Satellite className="w-4 h-4 mr-2 text-slate-400" />
+            <DropdownMenuItem
+              onClick={() => changeStyle('satellite')}
+              className={`cursor-pointer ${isDark ? 'hover:bg-slate-800 focus:bg-slate-800' : 'hover:bg-slate-100 focus:bg-slate-100'}`}
+            >
+              <Satellite className={`w-4 h-4 mr-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
               <span>Satellite</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => changeStyle('light')} className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800">
-              <Globe className="w-4 h-4 mr-2 text-slate-400" />
+            <DropdownMenuItem
+              onClick={() => changeStyle('light')}
+              className={`cursor-pointer ${isDark ? 'hover:bg-slate-800 focus:bg-slate-800' : 'hover:bg-slate-100 focus:bg-slate-100'}`}
+            >
+              <Globe className={`w-4 h-4 mr-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
               <span>Light Mode</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -826,30 +852,33 @@ export default function MapScene({
 
       {/* Route Legend - only show when scenario selected */}
       {selectedScenario && (
-        <div className="absolute top-4 right-16 bg-slate-900/80 backdrop-blur-md rounded-lg p-3 shadow-glow border border-white/10 text-xs text-slate-200">
-          <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400 mb-2">Legend</div>
+        <div
+          className={`absolute top-4 right-16 backdrop-blur-md rounded-lg p-3 border text-xs ${
+            isDark ? 'bg-slate-900/80 border-white/10 text-slate-100' : 'bg-white/90 border-slate-200 text-slate-900'
+          }`}
+        >
+          <div className={`font-mono text-[10px] uppercase tracking-wider mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Legend</div>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-4 h-1 rounded" style={{ backgroundColor: COLORS.routeA }} />
-              <span className="text-slate-300">Leader Route</span>
+              <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>Leader Route</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-1 rounded" style={{ backgroundColor: COLORS.routeB }} />
-              <span className="text-slate-300">Follower Route</span>
+              <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>Follower Route</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-1 rounded shadow-glow-success" style={{ backgroundColor: COLORS.formation }} />
-              <span className="text-emerald-400 font-medium">Formation Segment</span>
+              <div className="w-4 h-1 rounded" style={{ backgroundColor: COLORS.formation }} />
+              <span className={isDark ? 'text-emerald-400 font-medium' : 'text-emerald-700 font-medium'}>Formation Segment</span>
             </div>
             <div className="flex items-center gap-2">
               <div
                 className="w-4 h-1 rounded"
                 style={{
                   backgroundColor: COLORS.connector,
-                  backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.2) 2px, rgba(255,255,255,0.2) 4px)',
                 }}
               />
-              <span className="text-amber-400">Formation Link</span>
+              <span className={isDark ? 'text-amber-400' : 'text-amber-700'}>Formation Link</span>
             </div>
           </div>
         </div>
@@ -857,17 +886,23 @@ export default function MapScene({
 
       {/* Info Popup */}
       {showPopup && popupData && (
-        <Card className="absolute top-20 right-4 w-72 shadow-2xl bg-slate-900/95 border-white/10 backdrop-blur-lg z-50">
+        <Card
+          className={`absolute top-20 right-4 w-72 backdrop-blur-lg z-50 ${
+            isDark ? 'bg-slate-900/90 border-white/10 text-slate-100' : 'bg-white/95 border-slate-200 text-slate-900'
+          }`}
+        >
           <div className="p-4">
-            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
-              <span className="font-semibold text-white flex items-center gap-2">
-                <Plane className="w-4 h-4 text-blue-400" />
+            <div className={`flex items-center justify-between mb-3 border-b pb-2 ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+              <span className={`font-semibold flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                <Plane className={`w-4 h-4 ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
                 Route Details
               </span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-6 h-6 p-0 hover:bg-white/10 text-slate-400 hover:text-white"
+                className={`w-6 h-6 p-0 ${
+                  isDark ? 'hover:bg-white/10 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                }`}
                 onClick={() => setShowPopup(false)}
               >
                 <X className="w-4 h-4" />
@@ -877,10 +912,10 @@ export default function MapScene({
             <div className="space-y-4">
               {/* Leader */}
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full mt-1.5 shadow-[0_0_8px_rgba(59,130,246,0.5)]" style={{ backgroundColor: COLORS.routeA }} />
+                  <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: COLORS.routeA }} />
                 <div>
-                  <div className="font-medium text-slate-200 text-sm">{popupData.leader.label}</div>
-                  <div className="text-[10px] uppercase font-mono text-slate-500">
+                    <div className={`font-medium text-sm ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{popupData.leader.label}</div>
+                    <div className="text-[10px] uppercase font-mono text-slate-500">
                     {popupData.leader.route} • {popupData.leader.airline}
                   </div>
                 </div>
@@ -888,32 +923,32 @@ export default function MapScene({
 
               {/* Follower */}
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full mt-1.5 shadow-[0_0_8px_rgba(139,92,246,0.5)]" style={{ backgroundColor: COLORS.routeB }} />
+                  <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: COLORS.routeB }} />
                 <div>
-                  <div className="font-medium text-slate-200 text-sm">{popupData.follower.label}</div>
-                  <div className="text-[10px] uppercase font-mono text-slate-500">
+                    <div className={`font-medium text-sm ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{popupData.follower.label}</div>
+                    <div className="text-[10px] uppercase font-mono text-slate-500">
                     {popupData.follower.route} • {popupData.follower.airline}
                   </div>
                 </div>
               </div>
 
-              <div className="h-px bg-white/10" />
+              <div className={`h-px ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
 
               {/* Metrics */}
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="flex items-center gap-2 text-slate-400">
+                <div className={`flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   <Clock className="w-3.5 h-3.5 opacity-70" />
-                  <span className="font-mono text-slate-200">{popupData.metrics.formationMinutes} min</span>
+                  <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{popupData.metrics.formationMinutes} min</span>
                 </div>
-                <div className="flex items-center gap-2 text-slate-400">
+                <div className={`flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   <Route className="w-3.5 h-3.5 opacity-70" />
-                  <span className="font-mono text-slate-200">{formatDistance(popupData.metrics.formationDistanceKm)}</span>
+                  <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{formatDistance(popupData.metrics.formationDistanceKm)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-emerald-500">
+                <div className={`flex items-center gap-2 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                   <Leaf className="w-3.5 h-3.5" />
                   <span className="font-mono font-medium">{formatCO2(popupData.metrics.co2SavedKg)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-amber-500">
+                <div className={`flex items-center gap-2 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                   <Fuel className="w-3.5 h-3.5" />
                   <span className="font-mono font-medium">{formatNumber(popupData.metrics.fuelSavedKg)} kg</span>
                 </div>
