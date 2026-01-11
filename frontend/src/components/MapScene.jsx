@@ -30,6 +30,9 @@ export default function MapScene({
   replayState,
   followCamera,
   onPopupClose,
+  heatmapEnabled = false,
+  heatmapData = null,
+  heatmapTimeBucket = null,
 }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
@@ -40,7 +43,7 @@ export default function MapScene({
   const [showPopup, setShowPopup] = useState(false);
   const [popupData, setPopupData] = useState(null);
   const lastCameraUpdate = useRef(0);
-  const shouldSpin = useRef(true);
+  const shouldSpin = useRef(false); // Disabled auto-scroll/rotation
   const iconsLoaded = useRef({ leader: false, follower: false });
 
   // Styles configuration
@@ -381,7 +384,7 @@ export default function MapScene({
       // Define Sources
       const sources = [
         'route-a', 'route-b', 'formation-segment', 'connector-line',
-        'leader-plane', 'follower-plane', 'join-split-markers'
+        'leader-plane', 'follower-plane', 'join-split-markers', 'heatmap-source'
       ];
 
       sources.forEach(id => {
@@ -390,7 +393,7 @@ export default function MapScene({
             type: 'geojson',
             data: id.includes('plane')
               ? { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: { bearing: 0 } }
-              : id === 'join-split-markers'
+              : id === 'join-split-markers' || id === 'heatmap-source'
                 ? { type: 'FeatureCollection', features: [] }
                 : { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
           });
@@ -477,6 +480,71 @@ export default function MapScene({
         });
       }
 
+      // Heatmap Layer (added before planes so it renders behind them)
+      if (!map.current.getLayer('heatmap-layer')) {
+        map.current.addLayer({
+          id: 'heatmap-layer',
+          type: 'heatmap',
+          source: 'heatmap-source',
+          paint: {
+            // Weight based on intensity property
+            'heatmap-weight': [
+              'interpolate',
+              ['linear'],
+              ['get', 'intensity'],
+              0, 0,
+              1, 0.2,
+              5, 0.5,
+              10, 0.8,
+              20, 1
+            ],
+            // Intensity based on zoom
+            'heatmap-intensity': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              2, 1,
+              4, 2,
+              6, 3,
+              8, 4
+            ],
+            // Color ramp: blue -> green -> yellow -> red
+            'heatmap-color': [
+              'interpolate',
+              ['linear'],
+              ['heatmap-density'],
+              0, 'rgba(33, 150, 243, 0)',
+              0.2, 'rgba(33, 150, 243, 0.4)',
+              0.4, 'rgba(76, 175, 80, 0.6)',
+              0.6, 'rgba(255, 235, 59, 0.8)',
+              0.8, 'rgba(255, 152, 0, 0.9)',
+              1, 'rgba(244, 67, 54, 1)'
+            ],
+            // Radius based on zoom
+            'heatmap-radius': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              2, 15,
+              4, 25,
+              6, 40,
+              8, 60,
+              10, 80
+            ],
+            // Opacity - visible at low zoom, fades at high zoom
+            'heatmap-opacity': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              2, 0.8,
+              6, 0.6,
+              8, 0.4,
+              10, 0.2
+            ],
+          },
+        }, 'join-split-markers-layer'); // Add before join-split markers
+      }
+
       // Planes will be created by createPlaneLayers() after icon loading
       // Load icons and create plane layers
       loadIcons();
@@ -546,8 +614,8 @@ export default function MapScene({
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
 
-    // Sync spin state
-    shouldSpin.current = !selectedScenario;
+    // Sync spin state - disabled auto-scroll (always false)
+    shouldSpin.current = false;
 
     if (!selectedScenario) {
       // Clear all sources
@@ -757,6 +825,51 @@ export default function MapScene({
       }
     }
   }, [replayState, followCamera, mapLoaded, styleLoaded]);
+
+  // Update heatmap data
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+
+    const heatmapSource = map.current.getSource('heatmap-source');
+    if (!heatmapSource) return;
+
+    if (heatmapEnabled && heatmapData) {
+      // Data is already interpolated from HeatmapControls, no need to filter
+      const filteredData = Array.isArray(heatmapData) ? heatmapData : [];
+
+      // Convert to GeoJSON format
+      const geoJsonData = {
+        type: 'FeatureCollection',
+        features: filteredData.map((cell) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [cell.lon, cell.lat],
+          },
+          properties: {
+            intensity: cell.intensity || cell.flight_count || 0,
+            flight_count: cell.flight_count || 0,
+            node_count: cell.node_count || 0,
+            time_bucket: cell.time_bucket,
+          },
+        })),
+      };
+
+      heatmapSource.setData(geoJsonData);
+      
+      // Show heatmap layer
+      if (map.current.getLayer('heatmap-layer')) {
+        map.current.setLayoutProperty('heatmap-layer', 'visibility', 'visible');
+      }
+    } else {
+      // Hide heatmap layer
+      if (map.current.getLayer('heatmap-layer')) {
+        map.current.setLayoutProperty('heatmap-layer', 'visibility', 'none');
+      }
+      // Clear data
+      heatmapSource.setData({ type: 'FeatureCollection', features: [] });
+    }
+  }, [heatmapEnabled, heatmapData, heatmapTimeBucket, mapLoaded, styleLoaded]);
 
   // No token UI
   if (!mapboxToken) {

@@ -3,6 +3,7 @@ import cors from 'cors';
 import airportsRouter from './routes/airports.js';
 import matchesRouter from './routes/matches.js';
 import scenariosRouter from './routes/scenarios.js';
+import heatmapRouter from './routes/heatmap.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/airports', airportsRouter);
 app.use('/api/matches', matchesRouter);
 app.use('/api/scenarios', scenariosRouter);
+app.use('/api/heatmap', heatmapRouter);
 
 // 404 handler
 app.use((req, res) => {
