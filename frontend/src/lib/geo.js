@@ -1,309 +1,288 @@
 /**
- * Geo utilities for formation flight calculations
+ * Geo utilities for formation flight visualization
  */
-
-const EARTH_RADIUS_KM = 6371;
 
 /**
  * Convert degrees to radians
  */
-export function toRadians(deg) {
-  return (deg * Math.PI) / 180;
+export function toRadians(degrees) {
+  return degrees * Math.PI / 180;
 }
 
 /**
  * Convert radians to degrees
  */
-export function toDegrees(rad) {
-  return (rad * 180) / Math.PI;
+export function toDegrees(radians) {
+  return radians * 180 / Math.PI;
 }
 
 /**
- * Calculate haversine distance between two points in km
- * @param {number} lon1 - Longitude of first point
- * @param {number} lat1 - Latitude of first point
- * @param {number} lon2 - Longitude of second point
- * @param {number} lat2 - Latitude of second point
- * @returns {number} Distance in kilometers
- */
-export function haversineDistance(lon1, lat1, lon2, lat2) {
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return EARTH_RADIUS_KM * c;
-}
-
-/**
- * Calculate heading (bearing) between two points in radians
- * @param {number} lon1 - Longitude of first point
- * @param {number} lat1 - Latitude of first point
- * @param {number} lon2 - Longitude of second point
- * @param {number} lat2 - Latitude of second point
- * @returns {number} Heading in radians (0 = North, clockwise)
- */
-export function calculateHeading(lon1, lat1, lon2, lat2) {
-  const dLon = toRadians(lon2 - lon1);
-  const lat1Rad = toRadians(lat1);
-  const lat2Rad = toRadians(lat2);
-
-  const x = Math.sin(dLon) * Math.cos(lat2Rad);
-  const y =
-    Math.cos(lat1Rad) * Math.sin(lat2Rad) -
-    Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
-
-  return Math.atan2(x, y);
-}
-
-/**
- * Calculate offset position for follower aircraft in formation
- * Uses small-distance approximation for efficiency
- * @param {[number, number]} leaderLngLat - Leader position [longitude, latitude]
- * @param {number} headingRad - Leader heading in radians
- * @param {number} behindKm - Distance behind leader in km (positive = behind)
- * @param {number} sideKm - Distance to the side in km (positive = right/starboard)
- * @returns {[number, number]} Follower position [longitude, latitude]
- */
-export function offsetLngLat(leaderLngLat, headingRad, behindKm, sideKm) {
-  const [leaderLon, leaderLat] = leaderLngLat;
-
-  // Calculate offset in km relative to heading
-  // Behind is opposite to heading, side is perpendicular (90° to the right)
-  const dxKm =
-    -behindKm * Math.sin(headingRad) + sideKm * Math.sin(headingRad + Math.PI / 2);
-  const dyKm =
-    -behindKm * Math.cos(headingRad) + sideKm * Math.cos(headingRad + Math.PI / 2);
-
-  // Convert km to degrees using small-distance approximation
-  const latOffset = dyKm / 111;
-  const lonOffset = dxKm / (111 * Math.cos(toRadians(leaderLat)));
-
-  return [leaderLon + lonOffset, leaderLat + latOffset];
-}
-
-/**
- * Linear interpolation between two values
- */
-export function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-/**
- * Linear interpolation between two coordinates
- * @param {[number, number]} p1 - First point [lon, lat]
- * @param {[number, number]} p2 - Second point [lon, lat]
- * @param {number} t - Interpolation factor (0-1)
- * @returns {[number, number]} Interpolated point
- */
-export function lerpCoords(p1, p2, t) {
-  return [lerp(p1[0], p2[0], t), lerp(p1[1], p2[1], t)];
-}
-
-/**
- * Get interpolated position along a path at a given progress
- * @param {Array<{lon: number, lat: number}>} points - Path points
- * @param {number} progress - Progress along path (0-1)
- * @returns {{lon: number, lat: number, heading: number, index: number}}
- */
-export function getPositionAlongPath(points, progress) {
-  if (points.length === 0) return null;
-  if (points.length === 1) {
-    return { lon: points[0].lon, lat: points[0].lat, heading: 0, index: 0 };
-  }
-
-  const totalSegments = points.length - 1;
-  const exactIndex = progress * totalSegments;
-  const index = Math.min(Math.floor(exactIndex), totalSegments - 1);
-  const segmentProgress = exactIndex - index;
-
-  const p1 = points[index];
-  const p2 = points[Math.min(index + 1, points.length - 1)];
-
-  const lon = lerp(p1.lon, p2.lon, segmentProgress);
-  const lat = lerp(p1.lat, p2.lat, segmentProgress);
-  const heading = calculateHeading(p1.lon, p1.lat, p2.lon, p2.lat);
-
-  return { lon, lat, heading, index };
-}
-
-/**
- * Calculate total path distance in km
- * @param {Array<{lon: number, lat: number}>} points
- * @returns {number}
- */
-export function calculatePathDistance(points) {
-  let total = 0;
-  for (let i = 0; i < points.length - 1; i++) {
-    total += haversineDistance(
-      points[i].lon,
-      points[i].lat,
-      points[i + 1].lon,
-      points[i + 1].lat
-    );
-  }
-  return total;
-}
-
-/**
- * Calculate center point of a bounding box
- * @param {Array<{lon: number, lat: number}>} points
- * @returns {[number, number]} Center [lon, lat]
- */
-export function calculateCenter(points) {
-  if (points.length === 0) return [0, 0];
-
-  let minLon = Infinity, maxLon = -Infinity;
-  let minLat = Infinity, maxLat = -Infinity;
-
-  points.forEach((p) => {
-    minLon = Math.min(minLon, p.lon);
-    maxLon = Math.max(maxLon, p.lon);
-    minLat = Math.min(minLat, p.lat);
-    maxLat = Math.max(maxLat, p.lat);
-  });
-
-  return [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
-}
-
-/**
- * Calculate bounding box for points
- * @param {Array<{lon: number, lat: number}>} points
- * @returns {[[number, number], [number, number]]} [[sw], [ne]]
+ * Calculate bounding box for an array of points
  */
 export function calculateBounds(points) {
-  if (points.length === 0) return [[-180, -90], [180, 90]];
-
+  if (!points || points.length === 0) {
+    return [[-180, -90], [180, 90]];
+  }
+  
   let minLon = Infinity, maxLon = -Infinity;
   let minLat = Infinity, maxLat = -Infinity;
-
-  points.forEach((p) => {
-    minLon = Math.min(minLon, p.lon);
-    maxLon = Math.max(maxLon, p.lon);
-    minLat = Math.min(minLat, p.lat);
-    maxLat = Math.max(maxLat, p.lat);
-  });
-
-  // Add padding
-  const padding = 0.5;
+  
+  for (const point of points) {
+    const lon = point.lon ?? point.lng ?? point[0];
+    const lat = point.lat ?? point[1];
+    
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  
+  // Add some padding
+  const lonPadding = (maxLon - minLon) * 0.1 || 1;
+  const latPadding = (maxLat - minLat) * 0.1 || 1;
+  
   return [
-    [minLon - padding, minLat - padding],
-    [maxLon + padding, maxLat + padding],
+    [minLon - lonPadding, minLat - latPadding],
+    [maxLon + lonPadding, maxLat + latPadding]
   ];
 }
 
 /**
- * Build planned route points using approximate great-circle interpolation
- * Note: Uses linear interpolation for simplicity; this is "approx great-circle"
- * @param {Object} origin - {lon, lat, code}
- * @param {Object} destination - {lon, lat, code}
- * @param {number} durationSec - Total flight duration in seconds
- * @param {number} stepSec - Time step between points in seconds (default 10)
- * @returns {Array} Array of {t, lon, lat} points
+ * Calculate center point of an array of points
  */
-export function buildPlannedPoints(origin, destination, durationSec, stepSec = 10) {
-  const points = [];
-  const numSteps = Math.ceil(durationSec / stepSec);
-
-  for (let i = 0; i <= numSteps; i++) {
-    const t = Math.min(i * stepSec, durationSec);
-    const progress = durationSec > 0 ? t / durationSec : 0;
-
-    // Approximate great-circle: linear lat/lon interpolation
-    // Production would use true spherical interpolation
-    const lon = origin.lon + (destination.lon - origin.lon) * progress;
-    const lat = origin.lat + (destination.lat - origin.lat) * progress;
-
-    points.push({ t, lon, lat });
+export function calculateCenter(points) {
+  if (!points || points.length === 0) {
+    return { lat: 0, lon: 0 };
   }
+  
+  let sumLat = 0, sumLon = 0;
+  
+  for (const point of points) {
+    sumLon += point.lon ?? point.lng ?? point[0];
+    sumLat += point.lat ?? point[1];
+  }
+  
+  return {
+    lat: sumLat / points.length,
+    lon: sumLon / points.length
+  };
+}
 
+/**
+ * Calculate bearing/heading between two points (in radians)
+ */
+export function calculateHeading(lat1, lon1, lat2, lon2) {
+  const φ1 = toRadians(lat1);
+  const φ2 = toRadians(lat2);
+  const Δλ = toRadians(lon2 - lon1);
+  
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  
+  return Math.atan2(y, x);
+}
+
+/**
+ * Calculate distance between two points using Haversine formula (in km)
+ */
+export function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const φ1 = toRadians(lat1);
+  const φ2 = toRadians(lat2);
+  const Δφ = toRadians(lat2 - lat1);
+  const Δλ = toRadians(lon2 - lon1);
+  
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  
+  return R * c;
+}
+
+/**
+ * Offset a lat/lon point by a distance and bearing
+ */
+export function offsetLngLat(lat, lon, distanceKm, bearingRadians) {
+  const R = 6371; // Earth's radius in km
+  const φ1 = toRadians(lat);
+  const λ1 = toRadians(lon);
+  const δ = distanceKm / R; // Angular distance
+  const θ = bearingRadians;
+  
+  const φ2 = Math.asin(
+    Math.sin(φ1) * Math.cos(δ) +
+    Math.cos(φ1) * Math.sin(δ) * Math.cos(θ)
+  );
+  
+  const λ2 = λ1 + Math.atan2(
+    Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+    Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2)
+  );
+  
+  return {
+    lat: toDegrees(φ2),
+    lon: toDegrees(λ2)
+  };
+}
+
+/**
+ * Interpolate between two points
+ */
+export function interpolatePosition(p1, p2, t) {
+  return {
+    lat: p1.lat + (p2.lat - p1.lat) * t,
+    lon: p1.lon + (p2.lon - p1.lon) * t
+  };
+}
+
+/**
+ * Calculate the midpoint between two points (great circle)
+ */
+export function midpoint(lat1, lon1, lat2, lon2) {
+  const φ1 = toRadians(lat1);
+  const λ1 = toRadians(lon1);
+  const φ2 = toRadians(lat2);
+  const Δλ = toRadians(lon2 - lon1);
+  
+  const Bx = Math.cos(φ2) * Math.cos(Δλ);
+  const By = Math.cos(φ2) * Math.sin(Δλ);
+  
+  const φ3 = Math.atan2(
+    Math.sin(φ1) + Math.sin(φ2),
+    Math.sqrt((Math.cos(φ1) + Bx) * (Math.cos(φ1) + Bx) + By * By)
+  );
+  const λ3 = λ1 + Math.atan2(By, Math.cos(φ1) + Bx);
+  
+  return {
+    lat: toDegrees(φ3),
+    lon: toDegrees(λ3)
+  };
+}
+
+/**
+ * Build planned points (if needed for route visualization)
+ */
+export function buildPlannedPoints(originLat, originLon, destLat, destLon, numPoints = 100) {
+  const points = [];
+  
+  for (let i = 0; i <= numPoints; i++) {
+    const t = i / numPoints;
+    // Use great circle interpolation for more accurate paths
+    const point = interpolateGreatCircle(originLat, originLon, destLat, destLon, t);
+    points.push({
+      t: i,
+      lat: point.lat,
+      lon: point.lon
+    });
+  }
+  
   return points;
 }
 
 /**
- * Find position and heading at a given time within a points array
- * @param {Array} points - Array of {t, lon, lat} objects
- * @param {number} time - Time to find position for
- * @returns {Object} {position: [lon, lat], heading: radians, index: number}
+ * Great circle interpolation between two points
  */
-export function getPositionAtTime(points, time) {
-  if (!points || points.length === 0) {
-    return { position: [0, 0], heading: 0, index: 0 };
+export function interpolateGreatCircle(lat1, lon1, lat2, lon2, fraction) {
+  const φ1 = toRadians(lat1);
+  const λ1 = toRadians(lon1);
+  const φ2 = toRadians(lat2);
+  const λ2 = toRadians(lon2);
+  
+  // Calculate angular distance
+  const Δφ = φ2 - φ1;
+  const Δλ = λ2 - λ1;
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const δ = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  
+  if (δ < 0.0001) {
+    // Points are very close, use linear interpolation
+    return {
+      lat: lat1 + (lat2 - lat1) * fraction,
+      lon: lon1 + (lon2 - lon1) * fraction
+    };
   }
-
-  if (time <= points[0].t) {
-    const heading =
-      points.length > 1
-        ? calculateHeading(points[0].lon, points[0].lat, points[1].lon, points[1].lat)
-        : 0;
-    return { position: [points[0].lon, points[0].lat], heading, index: 0 };
-  }
-
-  if (time >= points[points.length - 1].t) {
-    const lastIdx = points.length - 1;
-    const heading =
-      points.length > 1
-        ? calculateHeading(
-            points[lastIdx - 1].lon,
-            points[lastIdx - 1].lat,
-            points[lastIdx].lon,
-            points[lastIdx].lat
-          )
-        : 0;
-    return { position: [points[lastIdx].lon, points[lastIdx].lat], heading, index: lastIdx };
-  }
-
-  // Binary search for the segment
-  let low = 0;
-  let high = points.length - 1;
-
-  while (low < high - 1) {
-    const mid = Math.floor((low + high) / 2);
-    if (points[mid].t <= time) {
-      low = mid;
-    } else {
-      high = mid;
-    }
-  }
-
-  const p1 = points[low];
-  const p2 = points[high];
-  const segmentDuration = p2.t - p1.t;
-  const t = segmentDuration > 0 ? (time - p1.t) / segmentDuration : 0;
-
-  const position = lerpCoords([p1.lon, p1.lat], [p2.lon, p2.lat], t);
-  const heading = calculateHeading(p1.lon, p1.lat, p2.lon, p2.lat);
-
-  return { position, heading, index: low };
+  
+  const A = Math.sin((1 - fraction) * δ) / Math.sin(δ);
+  const B = Math.sin(fraction * δ) / Math.sin(δ);
+  
+  const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2);
+  const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2);
+  const z = A * Math.sin(φ1) + B * Math.sin(φ2);
+  
+  const φ3 = Math.atan2(z, Math.sqrt(x * x + y * y));
+  const λ3 = Math.atan2(y, x);
+  
+  return {
+    lat: toDegrees(φ3),
+    lon: toDegrees(λ3)
+  };
 }
 
 /**
- * Find closest approach index between two flight paths
- * Useful for computing join point when not provided
+ * Smooth a path using Catmull-Rom spline
  */
-export function findClosestApproachIndex(points1, points2) {
-  let minDist = Infinity;
-  let minIndex = 0;
-
-  const step = Math.max(1, Math.floor(points1.length / 100));
-
-  for (let i = 0; i < points1.length; i += step) {
-    const p1 = points1[i];
-    const p2Data = getPositionAtTime(points2, p1.t);
-    const dist = haversineDistance(p1.lon, p1.lat, p2Data.position[0], p2Data.position[1]);
-
-    if (dist < minDist) {
-      minDist = dist;
-      minIndex = i;
+export function smoothPath(points, tension = 0.5, numSegments = 10) {
+  if (points.length < 2) return points;
+  
+  const smoothed = [];
+  
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+    
+    for (let j = 0; j < numSegments; j++) {
+      const t = j / numSegments;
+      const point = catmullRomInterpolate(p0, p1, p2, p3, t, tension);
+      smoothed.push(point);
     }
   }
-
-  return minIndex;
+  
+  // Add the last point
+  smoothed.push(points[points.length - 1]);
+  
+  return smoothed;
 }
+
+/**
+ * Catmull-Rom spline interpolation
+ */
+function catmullRomInterpolate(p0, p1, p2, p3, t, tension = 0.5) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  
+  const v0lat = (p2.lat - p0.lat) * tension;
+  const v1lat = (p3.lat - p1.lat) * tension;
+  const v0lon = (p2.lon - p0.lon) * tension;
+  const v1lon = (p3.lon - p1.lon) * tension;
+  
+  const lat = (2 * t3 - 3 * t2 + 1) * p1.lat +
+              (t3 - 2 * t2 + t) * v0lat +
+              (-2 * t3 + 3 * t2) * p2.lat +
+              (t3 - t2) * v1lat;
+              
+  const lon = (2 * t3 - 3 * t2 + 1) * p1.lon +
+              (t3 - 2 * t2 + t) * v0lon +
+              (-2 * t3 + 3 * t2) * p2.lon +
+              (t3 - t2) * v1lon;
+  
+  return { lat, lon, t: p1.t + (p2.t - p1.t) * t };
+}
+
+export default {
+  toRadians,
+  toDegrees,
+  calculateBounds,
+  calculateCenter,
+  calculateHeading,
+  haversineDistance,
+  offsetLngLat,
+  interpolatePosition,
+  midpoint,
+  buildPlannedPoints,
+  interpolateGreatCircle,
+  smoothPath
+};
