@@ -36,9 +36,9 @@ NODES_COLLECTION = 'flight_nodes'
 EDGES_COLLECTION = 'formation_edges'  # Where to store edges
 
 # Formation detection parameters (generalized for heatmap visualization - optimized for speed)
-MAX_DISTANCE_KM = 200  # Maximum distance in kilometers (increased to reduce query precision needed)
-MAX_TIME_DIFF_MINUTES = 30  # Maximum time difference in minutes (±30 min, generalized for heatmap)
-MAX_CANDIDATES_PER_NODE = 20  # Limit candidates per node (aggressively reduced for maximum speed)
+MAX_DISTANCE_KM = 50  # Maximum distance in kilometers (increased to reduce query precision needed)
+MAX_TIME_DIFF_MINUTES = 20  # Maximum time difference in minutes (±30 min, generalized for heatmap)
+MAX_CANDIDATES_PER_NODE = int(os.getenv('MAX_CANDIDATES_PER_NODE', '20'))  # Limit candidates per node (can be reduced for speed)
 COMPUTE_HEADING = False  # Whether to compute heading similarity (disabled for speed)
 
 # Optional: Limit number of nodes to process (for testing)

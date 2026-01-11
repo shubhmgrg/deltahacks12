@@ -63,6 +63,9 @@ router.get("/", async (req, res) => {
         });
       }
 
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       return res.json({
         ...heatmapData.metadata,
         data: filteredData,
@@ -96,6 +99,9 @@ router.get("/time-buckets", async (req, res) => {
     if (fs.existsSync(heatmapPath)) {
       const heatmapData = JSON.parse(fs.readFileSync(heatmapPath, "utf8"));
       const timeBuckets = heatmapData.metadata?.time_buckets || [];
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       return res.json({ timeBuckets, source: "file" });
     }
 
@@ -131,6 +137,9 @@ router.get("/stats", async (req, res) => {
       );
       const totalCells = data.length;
 
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       return res.json({
         maxIntensity,
         totalFlights,
