@@ -431,11 +431,6 @@ export default function ExistingApp() {
       <div
         className={`fixed inset-0 z-[100] flex items-center justify-center transition-opacity duration-300 ${
           fadeOut ? 'opacity-0' : 'opacity-100'
-  if (!appReady) {
-    return (
-      <div
-        className={`fixed inset-0 z-[100] flex items-center justify-center text-slate-900 transition-opacity duration-300 ${
-          fadeOut ? "opacity-0" : "opacity-100"
         }`}
         style={{
           backgroundColor: theme === "dark" ? "#020617" : "#f8fafc",
@@ -477,10 +472,6 @@ export default function ExistingApp() {
     <div
       className={`app-root flex flex-col overflow-hidden font-sans ${
         theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
-      className={`h-screen flex flex-col overflow-hidden font-sans ${
-        theme === "dark"
-          ? "bg-slate-950 text-slate-100"
-          : "bg-slate-50 text-slate-900"
       }`}
     >
       {/* Top Bar */}

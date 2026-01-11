@@ -153,7 +153,11 @@ export default function DataTable({
                       e.stopPropagation();
                       onReplayMatch(match);
                     }}
-                    className="flex items-center gap-1"
+                    className={`flex items-center gap-1 ${
+                      isDark
+                        ? "bg-slate-800/50 border-white/10 text-slate-200 hover:bg-slate-800/70 hover:text-slate-100"
+                        : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+                    }`}
                   >
                     <Play className="w-3 h-3" />
                     Replay
