@@ -158,7 +158,7 @@ export default function HeatmapControls({
       setIsPlaying(true);
       
       let bucketStartTime = Date.now();
-      const duration = 1000; // 1 second per time bucket transition
+      const duration = 500; // 0.5 second per time bucket transition (reduced for shorter trail persistence)
 
       const animate = () => {
         if (!isPlayingRef.current) {
