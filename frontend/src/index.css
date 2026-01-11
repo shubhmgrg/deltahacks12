@@ -9,10 +9,10 @@
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
-  background-color: #020617;
-  /* Slate 950 */
-  color: #f8fafc;
-  /* Slate 50 */
+  background-color: #f8fafc;
+  /* Slate 50 - Light mode */
+  color: #0f172a;
+  /* Slate 900 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

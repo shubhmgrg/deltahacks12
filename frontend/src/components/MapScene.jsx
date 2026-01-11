@@ -96,8 +96,8 @@ export default function MapScene({
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: STYLES.satellite,
-      center: [-30, 45],
-      zoom: 2,
+      center: [-98, 39], // Center on US (central US coordinates)
+      zoom: 3.9,
       pitch: 45,
       bearing: 0,
       projection: "globe",
@@ -1004,24 +1004,29 @@ export default function MapScene({
   // No token UI
   if (!mapboxToken) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-900 text-white">
+      <div className="h-full flex items-center justify-center bg-slate-50 text-slate-900">
         <div className="text-center p-8 max-w-md">
           <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <X className="w-8 h-8 text-red-400" />
+            <X className="w-8 h-8 text-red-600" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">Mapbox Token Required</h2>
-          <p className="text-gray-400 mb-4">
+          <h2 className="text-xl font-semibold mb-2 text-slate-900">
+            Mapbox Token Required
+          </h2>
+          <p className="text-slate-600 mb-4">
             Please set your Mapbox access token in the{" "}
-            <code className="bg-gray-800 px-2 py-1 rounded">.env</code> file:
+            <code className="bg-slate-200 px-2 py-1 rounded text-slate-900">
+              .env
+            </code>{" "}
+            file:
           </p>
-          <code className="block bg-gray-800 p-3 rounded text-sm text-left">
+          <code className="block bg-slate-200 p-3 rounded text-sm text-left text-slate-900">
             VITE_MAPBOX_TOKEN=your_token_here
           </code>
-          <p className="text-gray-500 text-sm mt-4">
+          <p className="text-slate-500 text-sm mt-4">
             Get a free token at{" "}
             <a
               href="https://mapbox.com"
-              className="text-blue-400 underline"
+              className="text-blue-600 underline"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -1034,8 +1039,8 @@ export default function MapScene({
   }
 
   return (
-    <div className="h-full relative">
-      <div ref={mapContainer} className="absolute inset-0" />
+    <div className="h-full relative bg-slate-50">
+      <div ref={mapContainer} className="absolute inset-0 bg-slate-50" />
 
       {/* Instructions overlay when no scenario selected */}
       {!selectedScenario && mapLoaded && (
