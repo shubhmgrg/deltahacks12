@@ -452,20 +452,6 @@ export default function Sidebar({
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4 py-2">
-                      {/* Stats */}
-                      {stats && (
-                        <div className={`flex items-center gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                          <div className="flex items-center gap-1">
-                            <Zap className="w-3 h-3" />
-                            <span>Max: {stats.maxIntensity || 0}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{stats.timeBuckets || 0} time steps</span>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Time Bucket Display */}
                       {timeBuckets.length > 0 && (
                         <div className="space-y-2">
