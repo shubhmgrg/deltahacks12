@@ -305,18 +305,18 @@ export default function ExistingApp() {
     setOptimalDepartureLoading(true);
     setOptimalDepartureData(null);
     setActiveTab("map"); // Switch to map tab early to show loading
-    
+
     // Clear existing selection
     setSelectedMatch(null);
     setSelectedScenario(null);
-    
+
     // Stop any existing replay
     if (replayController.current) {
       replayController.current.stop();
       replayController.current.destroy();
       replayController.current = null;
     }
-    
+
     setReplayState({
       isPlaying: false,
       progress: 0,
@@ -329,13 +329,13 @@ export default function ExistingApp() {
       showConnector: false,
     });
     setIsReplaying(false);
-    
+
     try {
       console.log("Loading optimal departure time with params:", params);
       const result = await getOptimalDepartureTime(params);
       console.log("Optimal departure result:", result);
       setOptimalDepartureData(result);
-      
+
       // Convert to scenario format if possible
       const scenario = convertOptimalDepartureToScenario(result);
       if (scenario) {
@@ -344,7 +344,10 @@ export default function ExistingApp() {
       }
     } catch (error) {
       console.error("Failed to load optimal departure time:", error);
-      alert("Failed to calculate optimal departure time. Please check your connection and try again. Error: " + (error.message || "Unknown error"));
+      alert(
+        "Failed to calculate optimal departure time. Please check your connection and try again. Error: " +
+          (error.message || "Unknown error")
+      );
     } finally {
       setOptimalDepartureLoading(false);
     }
@@ -352,7 +355,10 @@ export default function ExistingApp() {
 
   // Handle replay for optimal departure scenario
   const handleReplayOptimalDeparture = useCallback(() => {
-    if (!selectedScenario || !selectedScenario.id?.startsWith('optimal-departure-')) {
+    if (
+      !selectedScenario ||
+      !selectedScenario.id?.startsWith("optimal-departure-")
+    ) {
       return;
     }
 
@@ -470,7 +476,10 @@ export default function ExistingApp() {
           onHeatmapTimeBucketChange={setHeatmapTimeBucket}
           preloadedHeatmapStats={preloadedHeatmapStats}
           preloadedTimeBuckets={preloadedTimeBuckets}
-          optimalDepartureData={{ data: optimalDepartureData, loading: optimalDepartureLoading }}
+          optimalDepartureData={{
+            data: optimalDepartureData,
+            loading: optimalDepartureLoading,
+          }}
           onOptimalDepartureLoad={handleOptimalDepartureLoad}
           onOptimalDepartureReplay={handleReplayOptimalDeparture}
         />
