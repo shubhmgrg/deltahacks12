@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { Slider } from './ui/slider';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Card } from './ui/card';
+import React, { useState, useEffect, useRef } from "react";
+import { Slider } from "./ui/slider";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Card } from "./ui/card";
+import { Switch } from "./ui/switch";
 import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
-} from './ui/accordion';
+} from "./ui/accordion";
 import {
   ChevronLeft,
   ChevronRight,
@@ -19,8 +20,486 @@ import {
   Route,
   Leaf,
   MapPin,
-} from 'lucide-react';
-import { formatNumber, formatCO2, formatDistance, formatDuration } from '@/lib/utils';
+  Activity,
+  Pause,
+  RotateCcw,
+  Zap,
+  Search,
+  Loader2,
+  SlidersHorizontal,
+} from "lucide-react";
+import {
+  formatNumber,
+  formatCO2,
+  formatDistance,
+  formatDuration,
+} from "@/lib/utils";
+import {
+  getHeatmapData,
+  getTimeBuckets,
+  getHeatmapStats,
+} from "../api/heatmap";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { getOptimalDepartureTime } from "../api/optimal-departure";
+
+// Optimal Departure Results Component
+function OptimalDepartureResults({ theme, data, onReplay }) {
+  const isDark = theme === "dark";
+
+  if (!data || !data.route) return null;
+
+  const route = data.route;
+  const formatTime = (timeString) => {
+    if (!timeString) return "N/A";
+    try {
+      const date = new Date(timeString);
+      return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return timeString;
+    }
+  };
+
+  const timeOffset = route.time_offset_minutes || 0;
+  const offsetDisplay =
+    timeOffset > 0 ? `+${timeOffset.toFixed(0)}` : timeOffset.toFixed(0);
+
+  // Check if we have a partner flight (can replay)
+  const canReplay =
+    data.connections?.followed_flight_id &&
+    data.connections?.partner_flight_paths &&
+    Object.keys(data.connections.partner_flight_paths).length > 0;
+
+  return (
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem
+        value="optimal-departure-results"
+        className="border-b-0 px-4 border-t"
+      >
+        <AccordionTrigger
+          className={`py-3 hover:no-underline ${
+            isDark ? "text-slate-100" : "text-slate-900"
+          }`}
+        >
+          <div className="flex items-center gap-2 flex-1">
+            <Clock
+              className={`w-4 h-4 ${
+                isDark ? "text-slate-400" : "text-slate-600"
+              }`}
+            />
+            <span className="font-medium">Optimal Departure Results</span>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="space-y-3 py-2">
+            {/* Route Info */}
+            <div
+              className={`rounded-lg p-3 border ${
+                isDark
+                  ? "bg-slate-900/50 border-white/10"
+                  : "bg-white border-slate-200"
+              }`}
+            >
+              <div
+                className={`text-xs uppercase tracking-wider mb-2 ${
+                  isDark ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                Route
+              </div>
+              <div
+                className={`text-lg font-bold ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                {route.origin} → {route.destination}
+              </div>
+            </div>
+
+            {/* Optimal Departure Time */}
+            <div
+              className={`rounded-lg p-3 border ${
+                isDark
+                  ? "bg-slate-900/50 border-white/10"
+                  : "bg-white border-slate-200"
+              }`}
+            >
+              <div
+                className={`text-xs uppercase tracking-wider mb-1 ${
+                  isDark ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                Optimal Departure Time
+              </div>
+              <div
+                className={`text-xl font-bold font-mono ${
+                  isDark ? "text-green-400" : "text-green-600"
+                }`}
+              >
+                {formatTime(route.optimal_departure)}
+              </div>
+              <div
+                className={`text-xs mt-1 ${
+                  isDark ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                {offsetDisplay !== "0" && (
+                  <span
+                    className={
+                      timeOffset < 0 ? "text-red-400" : "text-green-400"
+                    }
+                  >
+                    {offsetDisplay} minutes from scheduled
+                  </span>
+                )}
+                {offsetDisplay === "0" && (
+                  <span>Scheduled time is optimal</span>
+                )}
+              </div>
+            </div>
+
+            {/* Scheduled Time */}
+            <div
+              className={`rounded-lg p-3 border ${
+                isDark
+                  ? "bg-slate-900/50 border-white/10"
+                  : "bg-white border-slate-200"
+              }`}
+            >
+              <div
+                className={`text-xs uppercase tracking-wider mb-1 ${
+                  isDark ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                Scheduled Departure
+              </div>
+              <div
+                className={`text-lg font-mono ${
+                  isDark ? "text-slate-300" : "text-slate-700"
+                }`}
+              >
+                {formatTime(route.scheduled_departure)}
+              </div>
+            </div>
+
+            {/* Path Legend */}
+            <div
+              className={`rounded-lg p-3 border ${
+                isDark
+                  ? "bg-slate-900/50 border-white/10"
+                  : "bg-white border-slate-200"
+              }`}
+            >
+              <div
+                className={`text-xs uppercase tracking-wider mb-2 ${
+                  isDark ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                Map Legend
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-1 bg-blue-500"></div>
+                  <span
+                    className={`text-xs ${
+                      isDark ? "text-slate-300" : "text-slate-700"
+                    }`}
+                  >
+                    Original Path (Scheduled)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-1 bg-amber-500"></div>
+                  <span
+                    className={`text-xs ${
+                      isDark ? "text-slate-300" : "text-slate-700"
+                    }`}
+                  >
+                    Optimal Path (Algorithm)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Savings Info */}
+            {data.cost_analysis && (
+              <div
+                className={`rounded-lg p-3 border ${
+                  isDark
+                    ? "bg-slate-900/50 border-white/10"
+                    : "bg-white border-slate-200"
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div
+                      className={`text-xs uppercase tracking-wider mb-1 ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      Estimated Savings
+                    </div>
+                    <div
+                      className={`text-lg font-bold ${
+                        isDark ? "text-emerald-400" : "text-emerald-600"
+                      }`}
+                    >
+                      {data.cost_analysis.savings_percent?.toFixed(2) || "0.00"}
+                      %
+                    </div>
+                    <div
+                      className={`text-xs mt-1 ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      {data.connections?.total_partners || 0} formation partners
+                    </div>
+                  </div>
+                  {canReplay && onReplay && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={`h-8 w-8 p-0 ${
+                        isDark
+                          ? "hover:bg-white/10 hover:text-white"
+                          : "hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReplay();
+                      }}
+                      title="Replay flight simulation"
+                    >
+                      <Play
+                        className={`w-4 h-4 ${
+                          isDark ? "text-slate-200" : "text-slate-700"
+                        }`}
+                      />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Partner Flights */}
+            {data.connections?.partner_flight_paths &&
+              Object.keys(data.connections.partner_flight_paths).length > 0 && (
+                <div
+                  className={`rounded-lg p-3 border ${
+                    isDark
+                      ? "bg-slate-900/50 border-white/10"
+                      : "bg-white border-slate-200"
+                  }`}
+                >
+                  <div
+                    className={`text-xs uppercase tracking-wider mb-2 ${
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
+                    Formation Partners (
+                    {Object.keys(data.connections.partner_flight_paths).length})
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                    {Object.entries(data.connections.partner_flight_paths).map(
+                      ([flightId, path]) => (
+                        <div
+                          key={flightId}
+                          className={`p-2 rounded border ${
+                            isDark
+                              ? "bg-slate-800/50 border-white/5"
+                              : "bg-slate-50 border-slate-200"
+                          }`}
+                        >
+                          <div
+                            className={`text-sm font-mono ${
+                              isDark ? "text-blue-400" : "text-blue-600"
+                            }`}
+                          >
+                            Flight {flightId.substring(0, 12)}...
+                          </div>
+                          <div
+                            className={`text-xs mt-1 ${
+                              isDark ? "text-slate-400" : "text-slate-500"
+                            }`}
+                          >
+                            {path?.length || 0} waypoints
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <div
+                    className={`text-xs mt-2 ${
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-4 h-0.5 bg-red-500"
+                        style={{
+                          backgroundImage:
+                            "repeating-linear-gradient(to right, #ef4444 0px, #ef4444 2px, transparent 2px, transparent 4px)",
+                        }}
+                      ></div>
+                      <span>Partner flights shown in red (dashed)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
+// Optimal Departure Time Form Component
+function OptimalDepartureForm({ theme, onLoad, isLoading = false }) {
+  const isDark = theme === "dark";
+  const [origin, setOrigin] = useState("");
+  const [dest, setDest] = useState("");
+  const [time, setTime] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!origin || !dest || !time) {
+      alert("Please fill in all required fields (Origin, Destination, Time)");
+      return;
+    }
+    const scheduledTime = `2013-01-01 ${time}:00`; // Using default date as requested
+    onLoad({
+      origin: origin.toUpperCase().trim(),
+      dest: dest.toUpperCase().trim(),
+      scheduled: scheduledTime,
+    });
+  };
+
+  return (
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem value="optimal-departure-form" className="border-b-0 px-4">
+        <AccordionTrigger
+          className={`py-3 hover:no-underline ${
+            isDark ? "text-slate-100" : "text-slate-900"
+          }`}
+        >
+          <div className="flex items-center gap-2 flex-1">
+            <Search
+              className={`w-4 h-4 ${
+                isDark ? "text-slate-400" : "text-slate-600"
+              }`}
+            />
+            <span className="font-medium">Optimal Departure Time</span>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="space-y-3 pb-2">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <Label
+                  htmlFor="origin"
+                  className={isDark ? "text-slate-300" : "text-slate-700"}
+                >
+                  Origin Airport Code *
+                </Label>
+                <Input
+                  id="origin"
+                  type="text"
+                  value={origin}
+                  onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+                  placeholder="e.g., JFK"
+                  maxLength={3}
+                  className={`mt-1 ${
+                    isDark
+                      ? "bg-slate-800 border-white/10 text-white"
+                      : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <Label
+                  htmlFor="dest"
+                  className={isDark ? "text-slate-300" : "text-slate-700"}
+                >
+                  Destination Airport Code *
+                </Label>
+                <Input
+                  id="dest"
+                  type="text"
+                  value={dest}
+                  onChange={(e) => setDest(e.target.value.toUpperCase())}
+                  placeholder="e.g., LAX"
+                  maxLength={3}
+                  className={`mt-1 ${
+                    isDark
+                      ? "bg-slate-800 border-white/10 text-white"
+                      : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <Label
+                  htmlFor="time"
+                  className={isDark ? "text-slate-300" : "text-slate-700"}
+                >
+                  Scheduled Time *
+                </Label>
+                <Input
+                  id="time"
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className={`mt-1 ${
+                    isDark
+                      ? "bg-slate-800 border-white/10 text-white"
+                      : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                  disabled={isLoading}
+                />
+                <p
+                  className={`text-xs mt-1 ${
+                    isDark ? "text-slate-400" : "text-slate-500"
+                  }`}
+                >
+                  Format: HH:MM (24-hour)
+                </p>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading || !origin || !dest || !time}
+                className={`w-full ${
+                  isDark
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                }`}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Calculating...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4 mr-2" />
+                    Find Optimal Time
+                  </>
+                )}
+              </Button>
+            </form>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
 
 export default function Sidebar({
   isOpen,
@@ -33,13 +512,240 @@ export default function Sidebar({
   onReplayMatch,
   selectedScenario,
   savingsPreset,
-  theme = 'light',
+  theme = "light",
   tripParams,
+  heatmapEnabled = false,
+  onHeatmapToggle = null,
+  onHeatmapDataChange = null,
+  onHeatmapTimeBucketChange = null,
+  preloadedHeatmapStats = null,
+  preloadedTimeBuckets = [],
+  optimalDepartureData = null,
+  onOptimalDepartureLoad = null,
+  onOptimalDepartureReplay = null,
 }) {
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
+
+  // Handle optimal departure data structure
+  const optimalData = optimalDepartureData?.data;
+  const optimalLoading = optimalDepartureData?.loading;
+
   const handleFilterChange = (key, value) => {
     onFiltersChange({ ...filters, [key]: value });
   };
+
+  // Heatmap state
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [timeBuckets, setTimeBuckets] = useState(preloadedTimeBuckets);
+  const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
+  const [interpolationProgress, setInterpolationProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [stats, setStats] = useState(preloadedHeatmapStats);
+  const [allHeatmapData, setAllHeatmapData] = useState(null);
+  const animationFrameRef = useRef(null);
+  const isPlayingRef = useRef(false);
+
+  // Load time buckets on mount (only if not preloaded)
+  useEffect(() => {
+    if (preloadedTimeBuckets.length === 0) {
+      loadTimeBuckets();
+    }
+    if (!preloadedHeatmapStats) {
+      loadStats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load all heatmap data when enabled
+  useEffect(() => {
+    if (heatmapEnabled && timeBuckets.length > 0) {
+      loadAllHeatmapData();
+    } else if (!heatmapEnabled && onHeatmapDataChange) {
+      onHeatmapDataChange(null);
+      setAllHeatmapData(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heatmapEnabled, timeBuckets.length]);
+
+  // Update interpolated data when time index or progress changes
+  useEffect(() => {
+    if (
+      heatmapEnabled &&
+      allHeatmapData &&
+      timeBuckets.length > 0 &&
+      onHeatmapDataChange
+    ) {
+      updateInterpolatedData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTimeIndex, interpolationProgress, allHeatmapData, heatmapEnabled]);
+
+  const loadTimeBuckets = async () => {
+    try {
+      const buckets = await getTimeBuckets();
+      setTimeBuckets(buckets);
+      if (buckets.length > 0) {
+        setCurrentTimeIndex(0);
+      }
+    } catch (error) {
+      console.error("Failed to load time buckets:", error);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const statsData = await getHeatmapStats();
+      setStats(statsData);
+    } catch (error) {
+      console.error("Failed to load heatmap stats:", error);
+    }
+  };
+
+  const loadAllHeatmapData = async () => {
+    setHeatmapLoading(true);
+    try {
+      const data = await getHeatmapData(null, false);
+      if (data && data.data) {
+        setAllHeatmapData(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load heatmap data:", error);
+    } finally {
+      setHeatmapLoading(false);
+    }
+  };
+
+  const updateInterpolatedData = () => {
+    if (!allHeatmapData || timeBuckets.length === 0 || !onHeatmapDataChange)
+      return;
+
+    const currentBucket = timeBuckets[currentTimeIndex];
+    const nextIndex = (currentTimeIndex + 1) % timeBuckets.length;
+    const nextBucket = timeBuckets[nextIndex];
+    const progress = interpolationProgress;
+
+    const currentMap = new Map();
+    const nextMap = new Map();
+
+    allHeatmapData.forEach((cell) => {
+      const key = `${cell.lat},${cell.lon}`;
+      if (cell.time_bucket === currentBucket) {
+        currentMap.set(key, cell);
+      }
+      if (cell.time_bucket === nextBucket) {
+        nextMap.set(key, cell);
+      }
+    });
+
+    const interpolatedCells = [];
+    const allKeys = new Set([...currentMap.keys(), ...nextMap.keys()]);
+
+    allKeys.forEach((key) => {
+      const currentCell = currentMap.get(key);
+      const nextCell = nextMap.get(key);
+
+      if (currentCell || nextCell) {
+        const currentIntensity =
+          currentCell?.intensity || currentCell?.flight_count || 0;
+        const nextIntensity =
+          nextCell?.intensity || nextCell?.flight_count || 0;
+
+        const easeProgress =
+          progress < 0.5
+            ? 2 * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+        const interpolatedIntensity =
+          currentIntensity + (nextIntensity - currentIntensity) * easeProgress;
+
+        const baseCell = currentCell || nextCell;
+        interpolatedCells.push({
+          ...baseCell,
+          intensity: Math.max(0, interpolatedIntensity),
+          flight_count: Math.round(interpolatedIntensity),
+        });
+      }
+    });
+
+    onHeatmapDataChange(interpolatedCells);
+    if (onHeatmapTimeBucketChange) {
+      onHeatmapTimeBucketChange(currentBucket);
+    }
+  };
+
+  const handlePlayPause = () => {
+    if (timeBuckets.length === 0) return;
+
+    if (isPlaying) {
+      isPlayingRef.current = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      setIsPlaying(false);
+    } else {
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+
+      let bucketStartTime = Date.now();
+      const duration = 1000;
+
+      const animate = () => {
+        if (!isPlayingRef.current) {
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          return;
+        }
+
+        const now = Date.now();
+        const elapsed = now - bucketStartTime;
+        const progress = Math.min(1, elapsed / duration);
+
+        setInterpolationProgress(progress);
+
+        if (progress >= 1) {
+          setCurrentTimeIndex((prev) => (prev + 1) % timeBuckets.length);
+          setInterpolationProgress(0);
+          bucketStartTime = now;
+        }
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    }
+  };
+
+  const handleReset = () => {
+    isPlayingRef.current = false;
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setIsPlaying(false);
+    setCurrentTimeIndex(0);
+    setInterpolationProgress(0);
+  };
+
+  const handleTimeSliderChange = (value) => {
+    const index = Math.round(value[0]);
+    setCurrentTimeIndex(index);
+    if (isPlaying) {
+      handlePlayPause();
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isPlayingRef.current = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   const savingsRates = {
     conservative: 0.02,
@@ -50,9 +756,13 @@ export default function Sidebar({
   return (
     <aside
       className={`
-        ${isOpen ? 'w-80' : 'w-0'}
+        ${isOpen ? "w-80" : "w-0"}
         transition-all duration-300 ease-in-out
-        ${isDark ? 'bg-slate-900/95 border-r border-white/10 text-slate-200 backdrop-blur-md' : 'bg-slate-100 border-r border-slate-200 text-slate-900'}
+        ${
+          isDark
+            ? "bg-slate-900/95 border-r border-white/10 text-slate-200 backdrop-blur-md"
+            : "bg-slate-100 border-r border-slate-200 text-slate-900"
+        }
         flex flex-col overflow-hidden h-full z-10
       `}
     >
@@ -61,11 +771,12 @@ export default function Sidebar({
         onClick={onToggle}
         className={`absolute left-0 top-1/2 transform -translate-y-1/2 z-10
           w-6 h-12 border border-l-0 rounded-r-md flex items-center justify-center transition-colors
-          ${isDark
-            ? 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800'
-            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+          ${
+            isDark
+              ? "bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800"
+              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
           }`}
-        style={{ left: isOpen ? '320px' : '0px' }}
+        style={{ left: isOpen ? "320px" : "0px" }}
       >
         {isOpen ? (
           <ChevronLeft className="w-4 h-4" />
@@ -77,68 +788,165 @@ export default function Sidebar({
       {isOpen && (
         <div className="flex flex-col h-full overflow-hidden">
           {/* Trip Summary Bar */}
-          {tripParams && tripParams.from && tripParams.to && tripParams.depart && (
-            <div className={`p-4 border-b ${isDark ? 'border-white/10 bg-slate-800/50' : 'border-slate-200 bg-slate-200'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <MapPin className={`h-4 w-4 ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
-                <span className={`text-xs font-medium uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Trip Summary</span>
-              </div>
-              <div className="space-y-1.5">
-                <div className={`flex items-center gap-2 text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  <span className="font-mono">{tripParams.from}</span>
-                  <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>→</span>
-                  <span className="font-mono">{tripParams.to}</span>
-                </div>
-                <div className={`flex items-center gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  <span>
-                    Depart {tripParams.depart && new Date(tripParams.depart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          {tripParams &&
+            tripParams.from &&
+            tripParams.to &&
+            tripParams.depart && (
+              <div
+                className={`p-4 border-b ${
+                  isDark
+                    ? "border-white/10 bg-slate-800/50"
+                    : "border-slate-200 bg-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin
+                    className={`h-4 w-4 ${
+                      isDark ? "text-slate-300" : "text-slate-700"
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium uppercase tracking-wider ${
+                      isDark ? "text-slate-300" : "text-slate-700"
+                    }`}
+                  >
+                    Trip Summary
                   </span>
-                  {tripParams.return ? (
-                    <span>• Return {new Date(tripParams.return).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] ${isDark ? 'border-white/15 text-slate-200 bg-white/5' : 'border-slate-300 text-slate-700 bg-white'}`}
+                </div>
+                <div className="space-y-1.5">
+                  <div
+                    className={`flex items-center gap-2 text-sm font-semibold ${
+                      isDark ? "text-white" : "text-slate-900"
+                    }`}
+                  >
+                    <span className="font-mono">{tripParams.from}</span>
+                    <span
+                      className={isDark ? "text-slate-400" : "text-slate-500"}
                     >
-                      One-way
-                    </Badge>
+                      →
+                    </span>
+                    <span className="font-mono">{tripParams.to}</span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-3 text-xs ${
+                      isDark ? "text-slate-400" : "text-slate-600"
+                    }`}
+                  >
+                    <span>
+                      Depart{" "}
+                      {tripParams.depart &&
+                        new Date(tripParams.depart).toLocaleDateString(
+                          "en-US",
+                          { month: "short", day: "numeric", year: "numeric" }
+                        )}
+                    </span>
+                    {tripParams.return ? (
+                      <span>
+                        • Return{" "}
+                        {new Date(tripParams.return).toLocaleDateString(
+                          "en-US",
+                          { month: "short", day: "numeric", year: "numeric" }
+                        )}
+                      </span>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${
+                          isDark
+                            ? "border-white/15 text-slate-200 bg-white/5"
+                            : "border-slate-300 text-slate-700 bg-white"
+                        }`}
+                      >
+                        One-way
+                      </Badge>
+                    )}
+                  </div>
+                  {tripParams.near && (
+                    <div
+                      className={`text-xs flex items-center gap-1 ${
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      }`}
+                    >
+                      <MapPin className="h-3 w-3" />
+                      Near {tripParams.near}
+                    </div>
                   )}
                 </div>
-                {tripParams.near && (
-                  <div className={`text-xs flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                    <MapPin className="h-3 w-3" />
-                    Near {tripParams.near}
-                  </div>
-                )}
               </div>
-            </div>
-          )}
+            )}
 
           {/* Header */}
-          <div className={`p-4 border-b ${isDark ? 'border-white/10 bg-slate-900/50' : 'border-slate-200 bg-slate-100'}`}>
-            <h2 className={`font-semibold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>Display Settings</h2>
-            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Configure formation filters</p>
+          <div
+            className={`p-4 border-b ${
+              isDark
+                ? "border-white/10 bg-slate-900/50"
+                : "border-slate-200 bg-slate-100"
+            }`}
+          >
+            <h2
+              className={`font-semibold text-lg ${
+                isDark ? "text-white" : "text-slate-900"
+              }`}
+            >
+              Display Settings
+            </h2>
+            <p
+              className={`text-sm ${
+                isDark ? "text-slate-400" : "text-slate-600"
+              }`}
+            >
+              Configure formation filters
+            </p>
           </div>
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {/* Filters Section */}
-            <Accordion type="single" collapsible defaultValue="filters">
+            {/* Filters and Heatmap Sections */}
+            <Accordion
+              type="multiple"
+              defaultValue={["heatmap"]}
+              className="w-full"
+            >
               <AccordionItem value="filters" className="border-b-0 px-4">
-                <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                  <span className="font-medium">Formation Filters</span>
+                <AccordionTrigger
+                  className={`py-3 hover:no-underline ${
+                    isDark ? "text-slate-100" : "text-slate-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <SlidersHorizontal
+                      className={`w-4 h-4 ${
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      }`}
+                    />
+                    <span className="font-medium">Formation Filters</span>
+                  </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-5 py-2">
                     {/* Time Overlap */}
                     <div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Time Overlap</span>
-                        <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{filters.timeOverlap} min</span>
+                        <span
+                          className={
+                            isDark ? "text-slate-400" : "text-slate-600"
+                          }
+                        >
+                          Time Overlap
+                        </span>
+                        <span
+                          className={`font-mono ${
+                            isDark ? "text-slate-100" : "text-slate-900"
+                          }`}
+                        >
+                          {filters.timeOverlap} min
+                        </span>
                       </div>
                       <Slider
                         value={[filters.timeOverlap]}
-                        onValueChange={([v]) => handleFilterChange('timeOverlap', v)}
+                        onValueChange={([v]) =>
+                          handleFilterChange("timeOverlap", v)
+                        }
                         min={5}
                         max={120}
                         step={5}
@@ -151,12 +959,26 @@ export default function Sidebar({
                     {/* Heading Tolerance */}
                     <div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Heading Tolerance</span>
-                        <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{filters.headingTolerance}°</span>
+                        <span
+                          className={
+                            isDark ? "text-slate-400" : "text-slate-600"
+                          }
+                        >
+                          Heading Tolerance
+                        </span>
+                        <span
+                          className={`font-mono ${
+                            isDark ? "text-slate-100" : "text-slate-900"
+                          }`}
+                        >
+                          {filters.headingTolerance}°
+                        </span>
                       </div>
                       <Slider
                         value={[filters.headingTolerance]}
-                        onValueChange={([v]) => handleFilterChange('headingTolerance', v)}
+                        onValueChange={([v]) =>
+                          handleFilterChange("headingTolerance", v)
+                        }
                         min={5}
                         max={45}
                         step={1}
@@ -169,12 +991,26 @@ export default function Sidebar({
                     {/* Min Formation Duration */}
                     <div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Min Duration</span>
-                        <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{filters.minFormationDuration} min</span>
+                        <span
+                          className={
+                            isDark ? "text-slate-400" : "text-slate-600"
+                          }
+                        >
+                          Min Duration
+                        </span>
+                        <span
+                          className={`font-mono ${
+                            isDark ? "text-slate-100" : "text-slate-900"
+                          }`}
+                        >
+                          {filters.minFormationDuration} min
+                        </span>
                       </div>
                       <Slider
                         value={[filters.minFormationDuration]}
-                        onValueChange={([v]) => handleFilterChange('minFormationDuration', v)}
+                        onValueChange={([v]) =>
+                          handleFilterChange("minFormationDuration", v)
+                        }
                         min={10}
                         max={180}
                         step={5}
@@ -187,12 +1023,26 @@ export default function Sidebar({
                     {/* Max Detour */}
                     <div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Max Detour</span>
-                        <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{filters.maxDetour} km</span>
+                        <span
+                          className={
+                            isDark ? "text-slate-400" : "text-slate-600"
+                          }
+                        >
+                          Max Detour
+                        </span>
+                        <span
+                          className={`font-mono ${
+                            isDark ? "text-slate-100" : "text-slate-900"
+                          }`}
+                        >
+                          {filters.maxDetour} km
+                        </span>
                       </div>
                       <Slider
                         value={[filters.maxDetour]}
-                        onValueChange={([v]) => handleFilterChange('maxDetour', v)}
+                        onValueChange={([v]) =>
+                          handleFilterChange("maxDetour", v)
+                        }
                         min={0}
                         max={100}
                         step={5}
@@ -203,12 +1053,26 @@ export default function Sidebar({
                     </div>
 
                     {/* Savings Rate Display */}
-                    <div className={`pt-2 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
+                    <div
+                      className={`pt-2 border-t ${
+                        isDark ? "border-white/10" : "border-slate-200"
+                      }`}
+                    >
                       <div className="flex justify-between text-sm items-center">
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Savings Rate</span>
+                        <span
+                          className={
+                            isDark ? "text-slate-400" : "text-slate-600"
+                          }
+                        >
+                          Savings Rate
+                        </span>
                         <Badge
                           variant="outline"
-                          className={`font-mono ${isDark ? 'border-white/15 text-slate-200 bg-white/5' : 'border-slate-300 text-slate-700 bg-white'}`}
+                          className={`font-mono ${
+                            isDark
+                              ? "border-white/15 text-slate-200 bg-white/5"
+                              : "border-slate-300 text-slate-700 bg-white"
+                          }`}
                         >
                           {(savingsRates[savingsPreset] * 100).toFixed(0)}%
                         </Badge>
@@ -217,113 +1081,400 @@ export default function Sidebar({
                   </div>
                 </AccordionContent>
               </AccordionItem>
+
+              {/* Heatmap Section */}
+              {onHeatmapToggle && (
+                <AccordionItem
+                  value="heatmap"
+                  className="border-b-0 px-4 border-t"
+                >
+                  <AccordionTrigger
+                    className={`py-3 hover:no-underline ${
+                      isDark ? "text-slate-100" : "text-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 flex-1">
+                      <Activity
+                        className={`w-4 h-4 ${
+                          isDark ? "text-slate-400" : "text-slate-600"
+                        }`}
+                      />
+                      <span className="font-medium">Heatmap</span>
+                    </div>
+                    <div className={isDark ? "" : "heatmap-switch-light"}>
+                      <Switch
+                        checked={heatmapEnabled}
+                        onCheckedChange={onHeatmapToggle}
+                        onClick={(e) => e.stopPropagation()}
+                        className={
+                          isDark
+                            ? ""
+                            : "data-[state=checked]:bg-slate-500 data-[state=unchecked]:bg-slate-300"
+                        }
+                      />
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4 py-2">
+                      {/* Time Bucket Display */}
+                      {timeBuckets.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span
+                              className={
+                                isDark ? "text-slate-400" : "text-slate-600"
+                              }
+                            >
+                              Time:
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs font-mono ${
+                                isDark
+                                  ? "border-blue-500/30 text-blue-400"
+                                  : "border-blue-500/50 text-blue-600"
+                              }`}
+                            >
+                              {timeBuckets[currentTimeIndex] || "--:--"}
+                            </Badge>
+                          </div>
+
+                          {/* Time Slider */}
+                          <div className="space-y-1">
+                            <Slider
+                              value={[currentTimeIndex]}
+                              min={0}
+                              max={Math.max(0, timeBuckets.length - 1)}
+                              step={1}
+                              onValueChange={handleTimeSliderChange}
+                              className="py-1"
+                            />
+                            <div
+                              className={`flex justify-between text-[10px] font-mono ${
+                                isDark ? "text-slate-500" : "text-slate-600"
+                              }`}
+                            >
+                              <span>{timeBuckets[0] || "00:00"}</span>
+                              <span>
+                                {timeBuckets[timeBuckets.length - 1] || "23:59"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Playback Controls */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handlePlayPause}
+                              disabled={
+                                heatmapLoading || timeBuckets.length === 0
+                              }
+                              className={`flex-1 ${
+                                isDark
+                                  ? "border-white/10 bg-slate-800/50 text-slate-200 hover:bg-slate-700 hover:text-white"
+                                  : "border-slate-300 bg-slate-50 text-slate-900 hover:bg-slate-100 hover:border-slate-400"
+                              }`}
+                            >
+                              {isPlaying ? (
+                                <>
+                                  <Pause className="w-3 h-3 mr-1" />
+                                  Pause
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3 h-3 mr-1" />
+                                  Play
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleReset}
+                              disabled={
+                                heatmapLoading || timeBuckets.length === 0
+                              }
+                              className={
+                                isDark
+                                  ? "border-white/10 bg-slate-800/50 text-slate-200 hover:bg-slate-700 hover:text-white"
+                                  : "border-slate-300 bg-slate-50 text-slate-900 hover:bg-slate-100 hover:border-slate-400"
+                              }
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
             </Accordion>
 
+            {/* Optimal Departure Time Section */}
+            {onOptimalDepartureLoad && (
+              <>
+                <OptimalDepartureForm
+                  theme={theme}
+                  onLoad={onOptimalDepartureLoad}
+                  isLoading={optimalLoading}
+                />
+                {optimalData && (
+                  <OptimalDepartureResults
+                    theme={theme}
+                    data={optimalData}
+                    onReplay={onOptimalDepartureReplay}
+                  />
+                )}
+              </>
+            )}
+
             {/* Best Opportunities */}
-            <div className={`p-4 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-              <h3 className={`font-medium mb-3 flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                <Leaf className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                Best Opportunities
-              </h3>
-              <div className="space-y-2">
-                {matches.map((match, index) => (
-                  <Card
-                    key={match.scenarioId}
-                    className={`
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem
+                value="best-opportunities"
+                className="border-b-0 px-4 border-t"
+              >
+                <AccordionTrigger
+                  className={`py-3 hover:no-underline ${
+                    isDark ? "text-slate-100" : "text-slate-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <Leaf
+                      className={`w-4 h-4 ${
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      }`}
+                    />
+                    <span className="font-medium">Best Opportunities</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-2 py-2">
+                    {matches.map((match, index) => (
+                      <Card
+                        key={match.scenarioId}
+                        className={`
                       p-3 cursor-pointer transition-all border-l-4
-                      ${selectedMatch?.scenarioId === match.scenarioId
-                        ? (isDark
-                          ? 'border-l-slate-300 bg-slate-800/40 border-white/10'
-                          : 'border-l-slate-900 bg-white border-slate-200')
-                        : (isDark
-                          ? 'border-l-transparent bg-slate-900/30 border-white/10 hover:border-l-slate-500 hover:bg-slate-800/40'
-                          : 'border-l-transparent bg-white border-slate-200 hover:border-l-slate-400 hover:bg-slate-50')
+                      ${
+                        selectedMatch?.scenarioId === match.scenarioId
+                          ? isDark
+                            ? "border-l-slate-300 bg-slate-800/40 border-white/10"
+                            : "border-l-slate-900 bg-white border-slate-200"
+                          : isDark
+                          ? "border-l-transparent bg-slate-900/30 border-white/10 hover:border-l-slate-500 hover:bg-slate-800/40"
+                          : "border-l-transparent bg-white border-slate-200 hover:border-l-slate-400 hover:bg-slate-50"
                       }
                     `}
-                    onClick={() => onSelectMatch(match)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-slate-500">#{String(index + 1).padStart(2, '0')}</span>
-                          <span className={`font-semibold text-sm ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                            {match.flightA} + {match.flightB}
+                        onClick={() => onSelectMatch(match)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-slate-500">
+                                #{String(index + 1).padStart(2, "0")}
+                              </span>
+                              <span
+                                className={`font-semibold text-sm ${
+                                  isDark ? "text-slate-100" : "text-slate-900"
+                                }`}
+                              >
+                                {match.flightA} + {match.flightB}
+                              </span>
+                            </div>
+                            <div
+                              className={`text-xs mt-1 pl-6 ${
+                                isDark ? "text-slate-400" : "text-slate-600"
+                              }`}
+                            >
+                              {match.routeA}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className={`h-7 w-7 p-0 ${
+                              isDark
+                                ? "hover:bg-white/10 hover:text-white"
+                                : "hover:bg-slate-100 hover:text-slate-900"
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onReplayMatch(match);
+                            }}
+                          >
+                            <Play
+                              className={`w-3 h-3 ${
+                                isDark ? "text-slate-200" : "text-slate-700"
+                              }`}
+                            />
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-4 mt-2 pl-6 text-xs">
+                          <span
+                            className={`flex items-center gap-1 ${
+                              isDark ? "text-slate-400" : "text-slate-600"
+                            }`}
+                          >
+                            <Clock className="w-3 h-3" />
+                            <span className="font-mono">
+                              {match.formationMinutes}m
+                            </span>
+                          </span>
+                          <span
+                            className={`flex items-center gap-1 font-medium ${
+                              isDark ? "text-emerald-400" : "text-emerald-700"
+                            }`}
+                          >
+                            <Leaf
+                              className={`w-3 h-3 ${
+                                isDark ? "text-emerald-400" : "text-emerald-700"
+                              }`}
+                            />
+                            <span className="font-mono">
+                              {formatCO2(match.co2SavedKg)}
+                            </span>
                           </span>
                         </div>
-                        <div className={`text-xs mt-1 pl-6 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                          {match.routeA}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className={`h-7 w-7 p-0 ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-slate-100 hover:text-slate-900'}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onReplayMatch(match);
-                        }}
-                      >
-                        <Play className={`w-3 h-3 ${isDark ? 'text-slate-200' : 'text-slate-700'}`} />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-4 mt-2 pl-6 text-xs">
-                      <span className={`flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        <Clock className="w-3 h-3" />
-                        <span className="font-mono">{match.formationMinutes}m</span>
-                      </span>
-                      <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
-                        <Leaf className={`w-3 h-3 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`} />
-                        <span className="font-mono">{formatCO2(match.co2SavedKg)}</span>
-                      </span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
+                      </Card>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             {/* Selected Match Detail */}
             {selectedScenario && (
-              <div className={`p-4 border-t ${isDark ? 'border-white/10 bg-slate-900/40' : 'border-slate-200 bg-slate-50'}`}>
-                <h3 className={`font-medium mb-3 flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                  <Plane className={`w-4 h-4 ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
+              <div
+                className={`p-4 border-t ${
+                  isDark
+                    ? "border-white/10 bg-slate-900/40"
+                    : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <h3
+                  className={`font-medium mb-3 flex items-center gap-2 ${
+                    isDark ? "text-slate-100" : "text-slate-900"
+                  }`}
+                >
+                  <Plane
+                    className={`w-4 h-4 ${
+                      isDark ? "text-slate-300" : "text-slate-700"
+                    }`}
+                  />
                   Match Details
                 </h3>
 
                 {/* Big Metrics */}
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
-                    <div className={`text-xl font-bold font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                  <div
+                    className={`rounded-lg p-3 border ${
+                      isDark
+                        ? "bg-slate-900/50 border-white/10"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className={`text-xl font-bold font-mono ${
+                        isDark ? "text-slate-100" : "text-slate-900"
+                      }`}
+                    >
                       {formatNumber(selectedScenario.metrics.fuelSavedKg)}
                     </div>
-                    <div className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      <Fuel className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                    <div
+                      className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      <Fuel
+                        className={`w-3 h-3 ${
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        }`}
+                      />
                       kg fuel
                     </div>
                   </div>
-                  <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
-                    <div className={`text-xl font-bold font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                  <div
+                    className={`rounded-lg p-3 border ${
+                      isDark
+                        ? "bg-slate-900/50 border-white/10"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className={`text-xl font-bold font-mono ${
+                        isDark ? "text-slate-100" : "text-slate-900"
+                      }`}
+                    >
                       {formatCO2(selectedScenario.metrics.co2SavedKg)}
                     </div>
-                    <div className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      <Leaf className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                    <div
+                      className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      <Leaf
+                        className={`w-3 h-3 ${
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        }`}
+                      />
                       CO₂ saved
                     </div>
                   </div>
-                  <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
-                    <div className={`text-xl font-bold font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                  <div
+                    className={`rounded-lg p-3 border ${
+                      isDark
+                        ? "bg-slate-900/50 border-white/10"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className={`text-xl font-bold font-mono ${
+                        isDark ? "text-slate-100" : "text-slate-900"
+                      }`}
+                    >
                       {selectedScenario.metrics.formationMinutes}
                     </div>
-                    <div className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      <Clock className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                    <div
+                      className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      <Clock
+                        className={`w-3 h-3 ${
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        }`}
+                      />
                       minutes
                     </div>
                   </div>
-                  <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
-                    <div className={`text-xl font-bold font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                      {formatDistance(selectedScenario.metrics.formationDistanceKm)}
+                  <div
+                    className={`rounded-lg p-3 border ${
+                      isDark
+                        ? "bg-slate-900/50 border-white/10"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div
+                      className={`text-xl font-bold font-mono ${
+                        isDark ? "text-slate-100" : "text-slate-900"
+                      }`}
+                    >
+                      {formatDistance(
+                        selectedScenario.metrics.formationDistanceKm
+                      )}
                     </div>
-                    <div className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      <Route className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                    <div
+                      className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      }`}
+                    >
+                      <Route
+                        className={`w-3 h-3 ${
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        }`}
+                      />
                       distance
                     </div>
                   </div>
@@ -331,27 +1482,66 @@ export default function Sidebar({
 
                 {/* Assumptions Accordion */}
                 <Accordion type="single" collapsible>
-                  <AccordionItem value="assumptions" className={`border rounded-lg ${isDark ? 'border-white/10 bg-slate-900/40' : 'border-slate-200 bg-white'}`}>
-                    <AccordionTrigger className={`px-3 py-2 text-sm hover:no-underline ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                  <AccordionItem
+                    value="assumptions"
+                    className={`border rounded-lg ${
+                      isDark
+                        ? "border-white/10 bg-slate-900/40"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <AccordionTrigger
+                      className={`px-3 py-2 text-sm hover:no-underline ${
+                        isDark ? "text-slate-200" : "text-slate-700"
+                      }`}
+                    >
                       Assumptions
                     </AccordionTrigger>
                     <AccordionContent className="px-3 pb-3">
-                      <div className={`space-y-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <div
+                        className={`space-y-2 text-xs ${
+                          isDark ? "text-slate-400" : "text-slate-600"
+                        }`}
+                      >
                         <div className="flex justify-between">
                           <span>Savings Rate</span>
-                          <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{(savingsRates[savingsPreset] * 100).toFixed(0)}%</span>
+                          <span
+                            className={`font-mono ${
+                              isDark ? "text-slate-100" : "text-slate-900"
+                            }`}
+                          >
+                            {(savingsRates[savingsPreset] * 100).toFixed(0)}%
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Detour Distance</span>
-                          <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{selectedScenario.metrics.detourKm} km</span>
+                          <span
+                            className={`font-mono ${
+                              isDark ? "text-slate-100" : "text-slate-900"
+                            }`}
+                          >
+                            {selectedScenario.metrics.detourKm} km
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Spacing (behind)</span>
-                          <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>1.5 km</span>
+                          <span
+                            className={`font-mono ${
+                              isDark ? "text-slate-100" : "text-slate-900"
+                            }`}
+                          >
+                            1.5 km
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Spacing (side)</span>
-                          <span className={`font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>0.3 km</span>
+                          <span
+                            className={`font-mono ${
+                              isDark ? "text-slate-100" : "text-slate-900"
+                            }`}
+                          >
+                            0.3 km
+                          </span>
                         </div>
                       </div>
                     </AccordionContent>
@@ -360,32 +1550,74 @@ export default function Sidebar({
 
                 {/* Flight Info */}
                 <div className="mt-4 space-y-2">
-                  <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+                  <div
+                    className={`rounded-lg p-3 border ${
+                      isDark
+                        ? "bg-slate-900/50 border-white/10"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${isDark ? 'border-white/15 text-slate-200 bg-white/5' : 'border-slate-300 text-slate-700 bg-white'}`}
+                        className={`text-[10px] ${
+                          isDark
+                            ? "border-white/15 text-slate-200 bg-white/5"
+                            : "border-slate-300 text-slate-700 bg-white"
+                        }`}
                       >
                         LEADER
                       </Badge>
-                      <span className={`font-semibold text-sm ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{selectedScenario.leader.label}</span>
+                      <span
+                        className={`font-semibold text-sm ${
+                          isDark ? "text-slate-100" : "text-slate-900"
+                        }`}
+                      >
+                        {selectedScenario.leader.label}
+                      </span>
                     </div>
-                    <div className={`text-xs font-mono pl-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                      {selectedScenario.leader.airline} • {selectedScenario.leader.aircraft}
+                    <div
+                      className={`text-xs font-mono pl-1 ${
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      }`}
+                    >
+                      {selectedScenario.leader.airline} •{" "}
+                      {selectedScenario.leader.aircraft}
                     </div>
                   </div>
-                  <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+                  <div
+                    className={`rounded-lg p-3 border ${
+                      isDark
+                        ? "bg-slate-900/50 border-white/10"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${isDark ? 'border-white/15 text-slate-200 bg-white/5' : 'border-slate-300 text-slate-700 bg-white'}`}
+                        className={`text-[10px] ${
+                          isDark
+                            ? "border-white/15 text-slate-200 bg-white/5"
+                            : "border-slate-300 text-slate-700 bg-white"
+                        }`}
                       >
                         FOLLOWER
                       </Badge>
-                      <span className={`font-semibold text-sm ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{selectedScenario.follower.label}</span>
+                      <span
+                        className={`font-semibold text-sm ${
+                          isDark ? "text-slate-100" : "text-slate-900"
+                        }`}
+                      >
+                        {selectedScenario.follower.label}
+                      </span>
                     </div>
-                    <div className={`text-xs font-mono pl-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                      {selectedScenario.follower.airline} • {selectedScenario.follower.aircraft}
+                    <div
+                      className={`text-xs font-mono pl-1 ${
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      }`}
+                    >
+                      {selectedScenario.follower.airline} •{" "}
+                      {selectedScenario.follower.aircraft}
                     </div>
                   </div>
                 </div>

@@ -17,7 +17,11 @@
     "mongodb": "^7.0.0",
     "nodemon": "^3.1.11"
   },
-  "keywords": ["aviation", "formation-flight", "api"],
+  "keywords": [
+    "aviation",
+    "formation-flight",
+    "api"
+  ],
   "author": "SkySync Team",
   "license": "MIT"
 }
