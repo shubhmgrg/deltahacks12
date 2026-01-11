@@ -1,30 +1,38 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import TopBar from '../components/TopBar';
-import Sidebar from '../components/Sidebar';
-import MapScene from '../components/MapScene';
-import DataTable from '../components/DataTable';
-import ReplayControls from '../components/ReplayControls';
-import HeatmapControls from '../components/HeatmapControls';
-import { createReplayController, REPLAY_STATES } from '../lib/replay';
-import { buildPlannedPoints } from '../lib/geo';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import TopBar from "../components/TopBar";
+import Sidebar from "../components/Sidebar";
+import MapScene from "../components/MapScene";
+import DataTable from "../components/DataTable";
+import ReplayControls from "../components/ReplayControls";
+import { createReplayController, REPLAY_STATES } from "../lib/replay";
+import { buildPlannedPoints } from "../lib/geo";
 
 // Import demo data (fallback)
-import scenariosData from '../data/scenarios.json';
-import matchesData from '../data/matches.json';
+import scenariosData from "../data/scenarios.json";
+import matchesData from "../data/matches.json";
 
 // API imports for backend-ready setup
-import { getMatches, getScenario, getConnectionStatus, subscribeToStatus, setDemoMode as setApiDemoMode, isDemoMode } from '../api';
-import { useSearchParams } from 'react-router-dom';
+import {
+  getMatches,
+  getScenario,
+  getConnectionStatus,
+  subscribeToStatus,
+  setDemoMode as setApiDemoMode,
+  isDemoMode,
+  getTimeBuckets,
+  getHeatmapStats,
+} from "../api";
+import { useSearchParams } from "react-router-dom";
 
 export default function ExistingApp() {
   const [searchParams] = useSearchParams();
 
   // Core state
-  const [activeTab, setActiveTab] = useState('map');
+  const [activeTab, setActiveTab] = useState("map");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isDemo, setIsDemo] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState('offline');
-  const [theme, setTheme] = useState('light'); // 'light' | 'dark'
+  const [connectionStatus, setConnectionStatus] = useState("offline");
+  const [theme, setTheme] = useState("light"); // 'light' | 'dark'
 
   // Data state - support both API and local fallback
   const [scenarios] = useState(scenariosData);
@@ -34,16 +42,18 @@ export default function ExistingApp() {
   const [loading, setLoading] = useState(false);
 
   // Map mode state
-  const [mapMode, setMapMode] = useState('3d'); // '3d' | '2d'
-  const [routeSource, setRouteSource] = useState('tracked'); // 'tracked' | 'planned'
+  const [mapMode, setMapMode] = useState("3d"); // '3d' | '2d'
+  const [routeSource, setRouteSource] = useState("tracked"); // 'tracked' | 'planned'
   const [compareMode, setCompareMode] = useState(false);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
-  const [heatmapMetric, setHeatmapMetric] = useState('co2');
+  const [heatmapMetric, setHeatmapMetric] = useState("co2");
   const [heatmapData, setHeatmapData] = useState(null);
   const [heatmapTimeBucket, setHeatmapTimeBucket] = useState(null);
+  const [preloadedHeatmapStats, setPreloadedHeatmapStats] = useState(null);
+  const [preloadedTimeBuckets, setPreloadedTimeBuckets] = useState([]);
 
   // Filter state
-  const [savingsPreset, setSavingsPreset] = useState('expected');
+  const [savingsPreset, setSavingsPreset] = useState("expected");
   const [filters, setFilters] = useState({
     timeOverlap: 30,
     headingTolerance: 15,
@@ -54,11 +64,11 @@ export default function ExistingApp() {
   });
 
   // Query params from landing page
-  const fromParam = searchParams.get('from');
-  const toParam = searchParams.get('to');
-  const departParam = searchParams.get('depart');
-  const returnParam = searchParams.get('return');
-  const nearParam = searchParams.get('near');
+  const fromParam = searchParams.get("from");
+  const toParam = searchParams.get("to");
+  const departParam = searchParams.get("depart");
+  const returnParam = searchParams.get("return");
+  const nearParam = searchParams.get("near");
 
   // Subscribe to connection status
   useEffect(() => {
@@ -86,68 +96,74 @@ export default function ExistingApp() {
   const replayController = useRef(null);
 
   // Handle match selection
-  const handleSelectMatch = useCallback((match) => {
-    setSelectedMatch(match);
-    const scenario = scenarios.find((s) => s.id === match.scenarioId);
-    setSelectedScenario(scenario);
-
-    // Stop any existing replay
-    if (replayController.current) {
-      replayController.current.stop();
-      replayController.current.destroy();
-      replayController.current = null;
-    }
-
-    setReplayState({
-      isPlaying: false,
-      progress: 0,
-      phase: REPLAY_STATES.IDLE,
-      leaderPosition: null,
-      followerPosition: null,
-      accumulatedFuel: 0,
-      accumulatedCO2: 0,
-      isLocked: false,
-      showConnector: false,
-    });
-    setIsReplaying(false);
-  }, [scenarios]);
-
-  // Handle replay initiation
-  const handleReplayMatch = useCallback((match) => {
-    handleSelectMatch(match);
-    setActiveTab('map');
-
-    // Small delay to ensure scenario is loaded
-    setTimeout(() => {
+  const handleSelectMatch = useCallback(
+    (match) => {
+      setSelectedMatch(match);
       const scenario = scenarios.find((s) => s.id === match.scenarioId);
-      if (!scenario) return;
+      setSelectedScenario(scenario);
 
-      // Clean up existing controller
+      // Stop any existing replay
       if (replayController.current) {
+        replayController.current.stop();
         replayController.current.destroy();
+        replayController.current = null;
       }
 
-      // Create new replay controller
-      replayController.current = createReplayController(scenario, {
-        speedMultiplier: playbackSpeed,
-        onUpdate: (state) => {
-          setReplayState(state);
-        },
-        onPhaseChange: (phase) => {
-          console.log('Phase changed:', phase);
-        },
-        onComplete: () => {
-          setReplayState((prev) => ({
-            ...prev,
-            isPlaying: false,
-          }));
-        },
+      setReplayState({
+        isPlaying: false,
+        progress: 0,
+        phase: REPLAY_STATES.IDLE,
+        leaderPosition: null,
+        followerPosition: null,
+        accumulatedFuel: 0,
+        accumulatedCO2: 0,
+        isLocked: false,
+        showConnector: false,
       });
+      setIsReplaying(false);
+    },
+    [scenarios]
+  );
 
-      setIsReplaying(true);
-      replayController.current.play();
-    }, 100);
-  }, [handleSelectMatch, scenarios, playbackSpeed]);
+  // Handle replay initiation
+  const handleReplayMatch = useCallback(
+    (match) => {
+      handleSelectMatch(match);
+      setActiveTab("map");
+
+      // Small delay to ensure scenario is loaded
+      setTimeout(() => {
+        const scenario = scenarios.find((s) => s.id === match.scenarioId);
+        if (!scenario) return;
+
+        // Clean up existing controller
+        if (replayController.current) {
+          replayController.current.destroy();
+        }
+
+        // Create new replay controller
+        replayController.current = createReplayController(scenario, {
+          speedMultiplier: playbackSpeed,
+          onUpdate: (state) => {
+            setReplayState(state);
+          },
+          onPhaseChange: (phase) => {
+            console.log("Phase changed:", phase);
+          },
+          onComplete: () => {
+            setReplayState((prev) => ({
+              ...prev,
+              isPlaying: false,
+            }));
+          },
+        });
+
+        setIsReplaying(true);
+        replayController.current.play();
+      }, 100);
+    },
+    [handleSelectMatch, scenarios, playbackSpeed]
+  );
 
   // Replay controls
   const handlePlay = useCallback(() => {
@@ -196,28 +212,31 @@ export default function ExistingApp() {
     }
   }, []);
 
-  const handleSpeedChange = useCallback((speed) => {
-    setPlaybackSpeed(speed);
-    // Recreate controller with new speed if currently replaying
-    if (replayController.current && selectedScenario) {
-      const wasPlaying = replayController.current.isPlaying();
-      const currentProgress = replayController.current.getState().progress;
+  const handleSpeedChange = useCallback(
+    (speed) => {
+      setPlaybackSpeed(speed);
+      // Recreate controller with new speed if currently replaying
+      if (replayController.current && selectedScenario) {
+        const wasPlaying = replayController.current.isPlaying();
+        const currentProgress = replayController.current.getState().progress;
 
-      replayController.current.destroy();
-      replayController.current = createReplayController(selectedScenario, {
-        speedMultiplier: speed,
-        onUpdate: setReplayState,
-        onComplete: () => {
-          setReplayState((prev) => ({ ...prev, isPlaying: false }));
-        },
-      });
+        replayController.current.destroy();
+        replayController.current = createReplayController(selectedScenario, {
+          speedMultiplier: speed,
+          onUpdate: setReplayState,
+          onComplete: () => {
+            setReplayState((prev) => ({ ...prev, isPlaying: false }));
+          },
+        });
 
-      replayController.current.seek(currentProgress);
-      if (wasPlaying) {
-        replayController.current.play();
+        replayController.current.seek(currentProgress);
+        if (wasPlaying) {
+          replayController.current.play();
+        }
       }
-    }
-  }, [selectedScenario]);
+    },
+    [selectedScenario]
+  );
 
   // Cleanup on unmount
   useEffect(() => {
@@ -233,6 +252,28 @@ export default function ExistingApp() {
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
+    // Preload heatmap data during loading screen
+    const preloadHeatmapData = async () => {
+      try {
+        // Preload time buckets and stats
+        const [buckets, stats] = await Promise.all([
+          getTimeBuckets().catch(() => []),
+          getHeatmapStats().catch(() => null),
+        ]);
+
+        if (buckets && buckets.length > 0) {
+          setPreloadedTimeBuckets(buckets);
+        }
+        if (stats) {
+          setPreloadedHeatmapStats(stats);
+        }
+      } catch (error) {
+        // Silently fail - data will load when needed
+      }
+    };
+
+    preloadHeatmapData();
+
     // Simulate initialization time or wait for resources
     const timer = setTimeout(() => {
       setFadeOut(true);
@@ -255,10 +296,14 @@ export default function ExistingApp() {
 
   if (!appReady) {
     return (
-      <div 
-        className={`fixed inset-0 z-[100] flex items-center justify-center bg-slate-50 text-slate-900 transition-opacity duration-300 ${
-          fadeOut ? 'opacity-0' : 'opacity-100'
+      <div
+        className={`fixed inset-0 z-[100] flex items-center justify-center text-slate-900 transition-opacity duration-300 ${
+          fadeOut ? "opacity-0" : "opacity-100"
         }`}
+        style={{
+          backgroundColor: theme === "dark" ? "#020617" : "#f8fafc",
+          color: theme === "dark" ? "#f8fafc" : "#0f172a",
+        }}
       >
         <div className="loading-screen-wrapper">
           <div className="loading-container">
@@ -266,19 +311,13 @@ export default function ExistingApp() {
             <div className="glow-ring glow-ring-1"></div>
             <div className="glow-ring glow-ring-2"></div>
             <div className="glow-ring glow-ring-3"></div>
-            
+
             {/* Main logo */}
             <img
               src="/transparent%20skysync.png"
               alt="SkySync Loading..."
               className="loading-logo"
             />
-            
-            {/* Rotating particles */}
-            <div className="particle particle-1"></div>
-            <div className="particle particle-2"></div>
-            <div className="particle particle-3"></div>
-            <div className="particle particle-4"></div>
           </div>
         </div>
       </div>
@@ -288,7 +327,9 @@ export default function ExistingApp() {
   return (
     <div
       className={`h-screen flex flex-col overflow-hidden font-sans ${
-        theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+        theme === "dark"
+          ? "bg-slate-950 text-slate-100"
+          : "bg-slate-50 text-slate-900"
       }`}
     >
       {/* Top Bar */}
@@ -300,7 +341,7 @@ export default function ExistingApp() {
         onDemoMode={handleDemoMode}
         isDemo={isDemo}
         theme={theme}
-        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
       />
 
       {/* Main Content */}
@@ -315,7 +356,7 @@ export default function ExistingApp() {
           selectedMatch={selectedMatch}
           onSelectMatch={(match) => {
             handleSelectMatch(match);
-            setActiveTab('map');
+            setActiveTab("map");
           }}
           onReplayMatch={handleReplayMatch}
           selectedScenario={selectedScenario}
@@ -328,11 +369,17 @@ export default function ExistingApp() {
             return: returnParam,
             near: nearParam,
           }}
+          heatmapEnabled={heatmapEnabled}
+          onHeatmapToggle={setHeatmapEnabled}
+          onHeatmapDataChange={setHeatmapData}
+          onHeatmapTimeBucketChange={setHeatmapTimeBucket}
+          preloadedHeatmapStats={preloadedHeatmapStats}
+          preloadedTimeBuckets={preloadedTimeBuckets}
         />
 
         {/* Main View */}
         <main className="flex-1 relative overflow-hidden">
-          {activeTab === 'map' ? (
+          {activeTab === "map" ? (
             <>
               <MapScene
                 scenarios={scenarios}
@@ -342,14 +389,6 @@ export default function ExistingApp() {
                 heatmapEnabled={heatmapEnabled}
                 heatmapData={heatmapData}
                 heatmapTimeBucket={heatmapTimeBucket}
-              />
-
-              {/* Heatmap Controls */}
-              <HeatmapControls
-                enabled={heatmapEnabled}
-                onToggle={setHeatmapEnabled}
-                onDataChange={setHeatmapData}
-                onTimeBucketChange={setHeatmapTimeBucket}
                 theme={theme}
               />
 
