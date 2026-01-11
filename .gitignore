@@ -38,3 +38,5 @@ run_formation_edges.sh
 step3_output.log
 requirements.txt
 __pycache__/
+
+.venv/
