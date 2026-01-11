@@ -2,24 +2,24 @@
  * Replay system for formation flight visualization
  */
 
-import { getPositionAlongPath, offsetLngLat, lerp } from './geo';
+import { getPositionAlongPath, offsetLngLat, lerp } from "./geo";
 
 // Formation offset parameters (km)
 export const DEFAULT_FORMATION = {
-  behindKm: 12,
-  sideKm: 3,
+  behindKm: 20,
+  sideKm: 25, // Increased from 3 to make V formation farther apart
 };
 
 /**
  * Replay state machine states
  */
 export const REPLAY_STATES = {
-  IDLE: 'IDLE',
-  PLAYING: 'PLAYING',
-  PAUSED: 'PAUSED',
-  RENDEZVOUS: 'RENDEZVOUS',
-  LOCKED: 'LOCKED',
-  SPLIT: 'SPLIT',
+  IDLE: "IDLE",
+  PLAYING: "PLAYING",
+  PAUSED: "PAUSED",
+  RENDEZVOUS: "RENDEZVOUS",
+  LOCKED: "LOCKED",
+  SPLIT: "SPLIT",
 };
 
 /**
@@ -78,12 +78,19 @@ export function createReplayController(scenario, options = {}) {
 
   function updatePositions(progress) {
     const leaderPos = getPositionAlongPath(scenario.leader.points, progress);
-    const followerOwnPos = getPositionAlongPath(scenario.follower.points, progress);
+    const followerOwnPos = getPositionAlongPath(
+      scenario.follower.points,
+      progress
+    );
 
     if (!leaderPos || !followerOwnPos) return;
 
     const currentIndex = Math.floor(progress * (totalPoints - 1));
-    const newPhase = getReplayPhase(currentIndex, scenario.joinIndex, scenario.splitIndex);
+    const newPhase = getReplayPhase(
+      currentIndex,
+      scenario.joinIndex,
+      scenario.splitIndex
+    );
 
     if (newPhase !== state.phase) {
       state.phase = newPhase;
@@ -117,16 +124,26 @@ export function createReplayController(scenario, options = {}) {
       };
 
       // Accumulate savings while locked
-      const savingsRate = scenario.metrics.fuelSavedKg / scenario.metrics.formationMinutes;
-      const co2Rate = scenario.metrics.co2SavedKg / scenario.metrics.formationMinutes;
-      const deltaMinutes = (1 / (totalPoints - 1)) * (scenario.metrics.formationMinutes / (splitProgress - joinProgress));
+      const savingsRate =
+        scenario.metrics.fuelSavedKg / scenario.metrics.formationMinutes;
+      const co2Rate =
+        scenario.metrics.co2SavedKg / scenario.metrics.formationMinutes;
+      const deltaMinutes =
+        (1 / (totalPoints - 1)) *
+        (scenario.metrics.formationMinutes / (splitProgress - joinProgress));
 
       state.accumulatedFuel += savingsRate * deltaMinutes * 0.1;
       state.accumulatedCO2 += co2Rate * deltaMinutes * 0.1;
 
       // Cap at max values
-      state.accumulatedFuel = Math.min(state.accumulatedFuel, scenario.metrics.fuelSavedKg);
-      state.accumulatedCO2 = Math.min(state.accumulatedCO2, scenario.metrics.co2SavedKg);
+      state.accumulatedFuel = Math.min(
+        state.accumulatedFuel,
+        scenario.metrics.fuelSavedKg
+      );
+      state.accumulatedCO2 = Math.min(
+        state.accumulatedCO2,
+        scenario.metrics.co2SavedKg
+      );
     } else {
       state.followerPosition = followerOwnPos;
       state.snapProgress = 0;
@@ -137,7 +154,8 @@ export function createReplayController(scenario, options = {}) {
     onUpdate?.({
       ...state,
       isLocked: state.phase === REPLAY_STATES.LOCKED,
-      showConnector: state.phase === REPLAY_STATES.LOCKED && state.snapProgress > 0.5,
+      showConnector:
+        state.phase === REPLAY_STATES.LOCKED && state.snapProgress > 0.5,
     });
   }
 

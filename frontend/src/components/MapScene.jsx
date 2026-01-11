@@ -214,8 +214,8 @@ export default function MapScene({
         };
 
         // Use simple paths (Vite serves /public at root)
-        const leaderIconPath = "/icons/plane_leader.png";
-        const followerIconPath = "/icons/plane_follower.png";
+        const leaderIconPath = "/plane.png";
+        const followerIconPath = "/plane.png";
 
         const loadIcon = (path, iconName, isLeader) => {
           return new Promise((resolve) => {
@@ -309,7 +309,7 @@ export default function MapScene({
               "icon-image": iconsLoaded.current.follower
                 ? "planeFollower"
                 : "planeLeader",
-              "icon-size": 0.075,
+              "icon-size": 0.05, // Smaller size
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
@@ -323,17 +323,17 @@ export default function MapScene({
           // Add at end (no beforeLayerId) so planes render on top of connector lines
           map.current.addLayer(followerLayerDef);
         } else {
-          // Fallback circle layer
+          // Fallback circle layer (should not be used if plane.png loads)
           const followerLayerDef = {
             id: "follower-plane-layer",
             type: "circle",
             source: "follower-plane",
             paint: {
-              "circle-radius": 10,
-              "circle-color": COLORS.routeB,
+              "circle-radius": 20, // Increased from 10
+              "circle-color": "#ffffff", // White
               "circle-stroke-width": 3,
-              "circle-stroke-color": "#ffffff",
-              "circle-opacity": 0.65,
+              "circle-stroke-color": "#000000", // Black stroke for contrast
+              "circle-opacity": 1.0,
             },
           };
           // Add at end (no beforeLayerId) so planes render on top of connector lines
@@ -349,7 +349,7 @@ export default function MapScene({
             source: "leader-plane",
             layout: {
               "icon-image": "planeLeader",
-              "icon-size": 0.08,
+              "icon-size": 0.05, // Smaller size
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
@@ -358,16 +358,16 @@ export default function MapScene({
           };
           map.current.addLayer(leaderLayerDef, "follower-plane-layer");
         } else {
-          // Fallback circle layer
+          // Fallback circle layer (should not be used if plane.png loads)
           const leaderLayerDef = {
             id: "leader-plane-layer",
             type: "circle",
             source: "leader-plane",
             paint: {
-              "circle-radius": 10,
-              "circle-color": COLORS.routeA,
+              "circle-radius": 22, // Increased from 10
+              "circle-color": "#ffffff", // White
               "circle-stroke-width": 3,
-              "circle-stroke-color": "#ffffff",
+              "circle-stroke-color": "#000000", // Black stroke for contrast
             },
           };
           map.current.addLayer(leaderLayerDef, "follower-plane-layer");
@@ -526,20 +526,8 @@ export default function MapScene({
         });
       }
 
-      // Join/Split Markers
-      if (!map.current.getLayer("join-split-markers-layer")) {
-        map.current.addLayer({
-          id: "join-split-markers-layer",
-          type: "circle",
-          source: "join-split-markers",
-          paint: {
-            "circle-radius": 8,
-            "circle-color": COLORS.joinSplit,
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#ffffff",
-          },
-        });
-      }
+      // Join/Split Markers - REMOVED (user requested no red dots)
+      // Layer creation commented out to remove red dots
 
       // Add original/scheduled departure path layer (after route layers are created)
       // Try to add before route-a-line, but if it doesn't exist, add without beforeId
@@ -791,32 +779,11 @@ export default function MapScene({
       geometry: { type: "LineString", coordinates: formationCoords },
     });
 
-    // Update join/split markers
-    const joinPoint =
-      selectedScenario.leader.points[selectedScenario.joinIndex];
-    const splitPoint =
-      selectedScenario.leader.points[selectedScenario.splitIndex];
-
+    // Update join/split markers - REMOVED (user requested no red dots)
+    // Clear join/split markers data to hide red dots
     map.current.getSource("join-split-markers")?.setData({
       type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [joinPoint.lon, joinPoint.lat],
-          },
-          properties: { type: "join" },
-        },
-        {
-          type: "Feature",
-          geometry: {
-            type: "Point",
-            coordinates: [splitPoint.lon, splitPoint.lat],
-          },
-          properties: { type: "split" },
-        },
-      ],
+      features: [], // Empty array to hide markers
     });
 
     // Fit bounds with smooth animation
@@ -1029,7 +996,7 @@ export default function MapScene({
       );
 
       map.current.fitBounds(bounds, {
-        padding: { top: 100, bottom: 150, left: 350, right: 50 },
+        padding: { top: 200, bottom: 300, left: 500, right: 200 }, // Increased padding to show more area
         duration: 1500,
       });
     }
