@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(xcopy:*)",
+      "Bash(Copy-Item -Path \"public\" -Destination \"frontend\\\\public\" -Recurse -Force)",
+      "Bash(Copy-Item -Path \"src\" -Destination \"frontend\\\\src\" -Recurse -Force)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)"
+    ]
+  }
+}

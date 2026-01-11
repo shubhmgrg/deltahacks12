@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import airportsRouter from './routes/airports.js';
@@ -5,7 +6,7 @@ import matchesRouter from './routes/matches.js';
 import scenariosRouter from './routes/scenarios.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // Middleware
 app.use(cors());

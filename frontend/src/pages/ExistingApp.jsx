@@ -284,7 +284,7 @@ export default function ExistingApp() {
 
   return (
     <div
-      className={`h-screen flex flex-col overflow-hidden font-sans ${
+      className={`app-root flex flex-col overflow-hidden font-sans ${
         theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
       }`}
     >
