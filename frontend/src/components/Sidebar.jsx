@@ -24,9 +24,259 @@ import {
   Pause,
   RotateCcw,
   Zap,
+  Search,
+  Loader2,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { formatNumber, formatCO2, formatDistance, formatDuration } from '@/lib/utils';
 import { getHeatmapData, getTimeBuckets, getHeatmapStats } from '../api/heatmap';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { getOptimalDepartureTime } from '../api/optimal-departure';
+
+// Optimal Departure Results Component
+function OptimalDepartureResults({ theme, data }) {
+  const isDark = theme === 'dark';
+  
+  if (!data || !data.route) return null;
+
+  const route = data.route;
+  const formatTime = (timeString) => {
+    if (!timeString) return 'N/A';
+    try {
+      const date = new Date(timeString);
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      return timeString;
+    }
+  };
+
+  const timeOffset = route.time_offset_minutes || 0;
+  const offsetDisplay = timeOffset > 0 ? `+${timeOffset.toFixed(0)}` : timeOffset.toFixed(0);
+
+  return (
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem value="optimal-departure-results" className="border-b-0 px-4 border-t">
+        <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+          <div className="flex items-center gap-2 flex-1">
+            <Clock className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+            <span className="font-medium">Optimal Departure Results</span>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="space-y-3 py-2">
+        {/* Route Info */}
+        <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className={`text-xs uppercase tracking-wider mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Route
+          </div>
+          <div className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            {route.origin} → {route.destination}
+          </div>
+        </div>
+
+        {/* Optimal Departure Time */}
+        <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className={`text-xs uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Optimal Departure Time
+          </div>
+          <div className={`text-xl font-bold font-mono ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+            {formatTime(route.optimal_departure)}
+          </div>
+          <div className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            {offsetDisplay !== '0' && (
+              <span className={timeOffset < 0 ? 'text-red-400' : 'text-green-400'}>
+                {offsetDisplay} minutes from scheduled
+              </span>
+            )}
+            {offsetDisplay === '0' && <span>Scheduled time is optimal</span>}
+          </div>
+        </div>
+
+        {/* Scheduled Time */}
+        <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className={`text-xs uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Scheduled Departure
+          </div>
+          <div className={`text-lg font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+            {formatTime(route.scheduled_departure)}
+          </div>
+        </div>
+
+        {/* Path Legend */}
+        <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+          <div className={`text-xs uppercase tracking-wider mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Map Legend
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-1 bg-blue-500"></div>
+              <span className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Original Path (Scheduled)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-1 bg-amber-500"></div>
+              <span className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Optimal Path (Algorithm)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Savings Info */}
+        {data.cost_analysis && (
+          <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className={`text-xs uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Estimated Savings
+            </div>
+            <div className={`text-lg font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+              {data.cost_analysis.savings_percent?.toFixed(2) || '0.00'}%
+            </div>
+            <div className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {data.connections?.total_partners || 0} formation partners
+            </div>
+          </div>
+        )}
+
+        {/* Partner Flights */}
+        {data.connections?.partner_flight_paths && Object.keys(data.connections.partner_flight_paths).length > 0 && (
+          <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className={`text-xs uppercase tracking-wider mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Formation Partners ({Object.keys(data.connections.partner_flight_paths).length})
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+              {Object.entries(data.connections.partner_flight_paths).map(([flightId, path]) => (
+                <div 
+                  key={flightId}
+                  className={`p-2 rounded border ${isDark ? 'bg-slate-800/50 border-white/5' : 'bg-slate-50 border-slate-200'}`}
+                >
+                  <div className={`text-sm font-mono ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                    Flight {flightId.substring(0, 12)}...
+                  </div>
+                  <div className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {path?.length || 0} waypoints
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className={`text-xs mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-0.5 bg-red-500" style={{ backgroundImage: 'repeating-linear-gradient(to right, #ef4444 0px, #ef4444 2px, transparent 2px, transparent 4px)' }}></div>
+                <span>Partner flights shown in red (dashed)</span>
+              </div>
+            </div>
+          </div>
+        )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
+// Optimal Departure Time Form Component
+function OptimalDepartureForm({ theme, onLoad, isLoading = false }) {
+  const isDark = theme === 'dark';
+  const [origin, setOrigin] = useState('');
+  const [dest, setDest] = useState('');
+  const [time, setTime] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!origin || !dest || !time) {
+      alert('Please fill in all required fields (Origin, Destination, Time)');
+      return;
+    }
+    const scheduledTime = `2013-01-01 ${time}:00`; // Using default date as requested
+    onLoad({
+      origin: origin.toUpperCase().trim(),
+      dest: dest.toUpperCase().trim(),
+      scheduled: scheduledTime,
+    });
+  };
+
+  return (
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem value="optimal-departure-form" className="border-b-0 px-4">
+        <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+          <div className="flex items-center gap-2 flex-1">
+            <Search className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+            <span className="font-medium">Optimal Departure Time</span>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="space-y-3 pb-2">
+          <form onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <Label htmlFor="origin" className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+            Origin Airport Code *
+          </Label>
+          <Input
+            id="origin"
+            type="text"
+            value={origin}
+            onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+            placeholder="e.g., JFK"
+            maxLength={3}
+            className={`mt-1 ${isDark ? 'bg-slate-800 border-white/10 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
+            disabled={isLoading}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="dest" className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+            Destination Airport Code *
+          </Label>
+          <Input
+            id="dest"
+            type="text"
+            value={dest}
+            onChange={(e) => setDest(e.target.value.toUpperCase())}
+            placeholder="e.g., LAX"
+            maxLength={3}
+            className={`mt-1 ${isDark ? 'bg-slate-800 border-white/10 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
+            disabled={isLoading}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="time" className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+            Scheduled Time *
+          </Label>
+          <Input
+            id="time"
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className={`mt-1 ${isDark ? 'bg-slate-800 border-white/10 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
+            disabled={isLoading}
+          />
+          <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Format: HH:MM (24-hour)
+          </p>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={isLoading || !origin || !dest || !time}
+          className={`w-full ${isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Calculating...
+            </>
+          ) : (
+            <>
+              <Search className="w-4 h-4 mr-2" />
+              Find Optimal Time
+            </>
+          )}
+        </Button>
+        </form>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+    );
+  }
 
 export default function Sidebar({
   isOpen,
@@ -47,8 +297,15 @@ export default function Sidebar({
   onHeatmapTimeBucketChange = null,
   preloadedHeatmapStats = null,
   preloadedTimeBuckets = [],
+  optimalDepartureData = null,
+  onOptimalDepartureLoad = null,
 }) {
   const isDark = theme === 'dark';
+  
+  // Handle optimal departure data structure
+  const optimalData = optimalDepartureData?.data;
+  const optimalLoading = optimalDepartureData?.loading;
+  
   const handleFilterChange = (key, value) => {
     onFiltersChange({ ...filters, [key]: value });
   };
@@ -335,14 +592,17 @@ export default function Sidebar({
             <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Configure formation filters</p>
           </div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {/* Filters and Heatmap Sections */}
-            <Accordion type="multiple" defaultValue={["heatmap"]} className="w-full">
-              <AccordionItem value="filters" className="border-b-0 px-4">
-                <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                  <span className="font-medium">Formation Filters</span>
-                </AccordionTrigger>
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* Filters and Heatmap Sections */}
+        <Accordion type="multiple" defaultValue={["heatmap"]} className="w-full">
+          <AccordionItem value="filters" className="border-b-0 px-4">
+            <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+              <div className="flex items-center gap-2 flex-1">
+                <SlidersHorizontal className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+                <span className="font-medium">Formation Filters</span>
+              </div>
+            </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-5 py-2">
                     {/* Time Overlap */}
@@ -519,15 +779,36 @@ export default function Sidebar({
                   </AccordionContent>
                 </AccordionItem>
               )}
-            </Accordion>
+        </Accordion>
 
-            {/* Best Opportunities */}
-            <div className={`p-4 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-              <h3 className={`font-medium mb-3 flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                <Leaf className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                Best Opportunities
-              </h3>
-              <div className="space-y-2">
+        {/* Optimal Departure Time Section */}
+        {onOptimalDepartureLoad && (
+          <>
+            <OptimalDepartureForm
+              theme={theme}
+              onLoad={onOptimalDepartureLoad}
+              isLoading={optimalLoading}
+            />
+            {optimalData && (
+              <OptimalDepartureResults
+                theme={theme}
+                data={optimalData}
+              />
+            )}
+          </>
+        )}
+
+        {/* Best Opportunities */}
+        <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="best-opportunities" className="border-b-0 px-4 border-t">
+              <AccordionTrigger className={`py-3 hover:no-underline ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                <div className="flex items-center gap-2 flex-1">
+                  <Leaf className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} />
+                  <span className="font-medium">Best Opportunities</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2 py-2">
                 {matches.map((match, index) => (
                   <Card
                     key={match.scenarioId}
@@ -580,8 +861,10 @@ export default function Sidebar({
                     </div>
                   </Card>
                 ))}
-              </div>
-            </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             {/* Selected Match Detail */}
             {selectedScenario && (

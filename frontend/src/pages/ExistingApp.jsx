@@ -21,6 +21,7 @@ import {
   isDemoMode,
   getTimeBuckets,
   getHeatmapStats,
+  getOptimalDepartureTime,
 } from "../api";
 import { useSearchParams } from "react-router-dom";
 
@@ -51,6 +52,10 @@ export default function ExistingApp() {
   const [heatmapTimeBucket, setHeatmapTimeBucket] = useState(null);
   const [preloadedHeatmapStats, setPreloadedHeatmapStats] = useState(null);
   const [preloadedTimeBuckets, setPreloadedTimeBuckets] = useState([]);
+
+  // Optimal departure time state
+  const [optimalDepartureData, setOptimalDepartureData] = useState(null);
+  const [optimalDepartureLoading, setOptimalDepartureLoading] = useState(false);
 
   // Filter state
   const [savingsPreset, setSavingsPreset] = useState("expected");
@@ -294,6 +299,25 @@ export default function ExistingApp() {
     }
   }, [matches, selectedMatch, handleSelectMatch]);
 
+  // Handle optimal departure time loading
+  const handleOptimalDepartureLoad = useCallback(async (params) => {
+    setOptimalDepartureLoading(true);
+    setOptimalDepartureData(null);
+    setActiveTab("map"); // Switch to map tab early to show loading
+    
+    try {
+      console.log("Loading optimal departure time with params:", params);
+      const result = await getOptimalDepartureTime(params);
+      console.log("Optimal departure result:", result);
+      setOptimalDepartureData(result);
+    } catch (error) {
+      console.error("Failed to load optimal departure time:", error);
+      alert("Failed to calculate optimal departure time. Please check your connection and try again. Error: " + (error.message || "Unknown error"));
+    } finally {
+      setOptimalDepartureLoading(false);
+    }
+  }, []);
+
   if (!appReady) {
     return (
       <div
@@ -375,6 +399,8 @@ export default function ExistingApp() {
           onHeatmapTimeBucketChange={setHeatmapTimeBucket}
           preloadedHeatmapStats={preloadedHeatmapStats}
           preloadedTimeBuckets={preloadedTimeBuckets}
+          optimalDepartureData={{ data: optimalDepartureData, loading: optimalDepartureLoading }}
+          onOptimalDepartureLoad={handleOptimalDepartureLoad}
         />
 
         {/* Main View */}
@@ -389,6 +415,7 @@ export default function ExistingApp() {
                 heatmapEnabled={heatmapEnabled}
                 heatmapData={heatmapData}
                 heatmapTimeBucket={heatmapTimeBucket}
+                optimalDepartureData={optimalDepartureData}
                 theme={theme}
               />
 

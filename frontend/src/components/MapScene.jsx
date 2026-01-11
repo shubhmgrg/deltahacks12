@@ -54,6 +54,7 @@ export default function MapScene({
   heatmapEnabled = false,
   heatmapData = null,
   heatmapTimeBucket = null,
+  optimalDepartureData = null,
   theme = "light",
 }) {
   const isDark = theme === "dark";
@@ -424,6 +425,8 @@ export default function MapScene({
         "follower-plane",
         "join-split-markers",
         "heatmap-source",
+        "optimal-departure-path",
+        "original-departure-path",
       ];
 
       sources.forEach((id) => {
@@ -536,6 +539,38 @@ export default function MapScene({
             "circle-stroke-color": "#ffffff",
           },
         });
+      }
+
+      // Add original/scheduled departure path layer (after route layers are created)
+      // Try to add before route-a-line, but if it doesn't exist, add without beforeId
+      if (!map.current.getLayer("original-departure-path-layer")) {
+        const beforeId = map.current.getLayer("route-a-line") ? "route-a-line" : undefined;
+        map.current.addLayer({
+          id: "original-departure-path-layer",
+          type: "line",
+          source: "original-departure-path",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "#3b82f6", // Blue color for original path
+            "line-width": 4,
+            "line-opacity": 0.8,
+          },
+        }, beforeId); // Add before route-a-line if it exists, otherwise add to end
+      }
+
+      // Add optimal departure path layer (after route layers are created)
+      if (!map.current.getLayer("optimal-departure-path-layer")) {
+        map.current.addLayer({
+          id: "optimal-departure-path-layer",
+          type: "line",
+          source: "optimal-departure-path",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "#f59e0b", // Amber/orange color for optimal path
+            "line-width": 4,
+            "line-opacity": 0.9,
+          },
+        }, "route-a-line"); // Add before route-a-line so it renders behind
       }
 
       // Heatmap Layer (added before planes so it renders behind them)
@@ -803,6 +838,202 @@ export default function MapScene({
     // Update popup data
     setPopupData(selectedScenario);
   }, [selectedScenario, mapLoaded, styleLoaded]);
+
+  // Update optimal departure path when data changes
+  useEffect(() => {
+    if (!mapLoaded || !map.current) {
+      console.log('Map not loaded yet, skipping optimal departure path update');
+      return;
+    }
+
+    if (!optimalDepartureData || !optimalDepartureData.path) {
+      console.log('No optimal departure data, clearing paths');
+      // Clear both paths
+      if (map.current.getSource("optimal-departure-path")) {
+        map.current.getSource("optimal-departure-path").setData({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: [] },
+        });
+      }
+      if (map.current.getSource("original-departure-path")) {
+        map.current.getSource("original-departure-path").setData({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: [] },
+        });
+      }
+      // Clear all partner flight paths (will be cleaned up when data is set again)
+      return;
+    }
+
+    console.log('Updating departure paths:', {
+      hasPath: !!optimalDepartureData.path,
+      optimalPathLength: optimalDepartureData.path.optimal_flight_path?.length || 0,
+      originalPathLength: optimalDepartureData.path.original_flight_path?.length || 0
+    });
+
+    // Extract coordinates from original/scheduled flight path (straight line)
+    const originalFlightPath = optimalDepartureData.path.original_flight_path || [];
+    const originalCoordinates = originalFlightPath.map((node) => {
+      if (!node.lon || !node.lat) {
+        console.warn('Invalid original node:', node);
+        return null;
+      }
+      return [node.lon, node.lat];
+    }).filter(coord => coord !== null);
+
+    // Extract coordinates from optimal flight path (algorithm path with nodes)
+    const optimalFlightPath = optimalDepartureData.path.optimal_flight_path || [];
+    const optimalCoordinates = optimalFlightPath.map((node) => {
+      if (!node.lon || !node.lat) {
+        console.warn('Invalid optimal node:', node);
+        return null;
+      }
+      return [node.lon, node.lat];
+    }).filter(coord => coord !== null);
+
+    console.log('Extracted coordinates - Original:', originalCoordinates.length, 'Optimal:', optimalCoordinates.length);
+
+    // Update original/scheduled path
+    if (originalCoordinates.length > 0) {
+      const originalSource = map.current.getSource("original-departure-path");
+      if (originalSource) {
+        const geoJsonData = {
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: originalCoordinates,
+          },
+          properties: {
+            type: "original",
+            origin: optimalDepartureData.route.origin,
+            destination: optimalDepartureData.route.destination,
+            scheduledDeparture: optimalDepartureData.route.scheduled_departure,
+          },
+        };
+        originalSource.setData(geoJsonData);
+        console.log('Original path data set with', originalCoordinates.length, 'coordinates');
+      } else {
+        console.error('Original departure path source not found');
+      }
+    } else {
+      console.warn('No original coordinates to display');
+    }
+
+    // Update optimal path
+    if (optimalCoordinates.length > 0) {
+      const optimalSource = map.current.getSource("optimal-departure-path");
+      if (!optimalSource) {
+        console.error('Optimal departure path source not found');
+        return;
+      }
+
+      optimalSource.setData({
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: optimalCoordinates,
+        },
+        properties: {
+          type: "optimal",
+          origin: optimalDepartureData.route.origin,
+          destination: optimalDepartureData.route.destination,
+          optimalDeparture: optimalDepartureData.route.optimal_departure,
+        },
+      });
+
+      console.log('Optimal path data set');
+    } else {
+      console.warn('No valid coordinates extracted from optimal flight path');
+    }
+
+    // Add partner flight paths
+    const partnerFlightPaths = optimalDepartureData.connections?.partner_flight_paths || {};
+    const partnerFlightIds = Object.keys(partnerFlightPaths);
+    const allCoordinatesForBounds = [...originalCoordinates, ...optimalCoordinates];
+
+    // Add/update partner flight paths
+    partnerFlightIds.forEach((flightId) => {
+      const flightPath = partnerFlightPaths[flightId];
+      if (!flightPath || flightPath.length === 0) return;
+
+      const sourceId = `partner-flight-${flightId}`;
+      const layerId = `layer-${sourceId}`;
+
+      const coordinates = flightPath.map((node) => [node.lon, node.lat]).filter(coord => coord[0] != null && coord[1] != null);
+
+      if (coordinates.length > 0) {
+        // Add source if it doesn't exist
+        if (!map.current.getSource(sourceId)) {
+          map.current.addSource(sourceId, {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              geometry: {
+                type: "LineString",
+                coordinates: coordinates,
+              },
+              properties: {
+                flight_id: flightId,
+              },
+            },
+          });
+        } else {
+          // Update existing source
+          map.current.getSource(sourceId).setData({
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: coordinates,
+            },
+            properties: {
+              flight_id: flightId,
+            },
+          });
+        }
+
+        // Add layer if it doesn't exist
+          if (!map.current.getLayer(layerId)) {
+            map.current.addLayer({
+              id: layerId,
+              type: "line",
+              source: sourceId,
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: {
+                "line-color": "#ef4444", // Red color for partner flights
+                "line-width": 5, // Increased width for better visibility when overlapping
+                "line-opacity": 1.0, // Full opacity to ensure visibility
+                "line-dasharray": [2, 2], // Dashed line pattern
+              },
+            }); // Add at the end (on top) for maximum visibility
+          } else {
+            // Update existing layer to ensure it's on top
+            try {
+              map.current.moveLayer(layerId);
+            } catch (e) {
+              // Layer might already be on top, ignore error
+            }
+          }
+        
+        // Add coordinates to bounds calculation
+        allCoordinatesForBounds.push(...coordinates);
+      }
+    });
+
+    // Update bounds to include all paths (original, optimal, and partner flights)
+    if (allCoordinatesForBounds.length > 1) {
+      const bounds = allCoordinatesForBounds.reduce(
+        (bounds, coord) => {
+          return bounds.extend(coord);
+        },
+        new mapboxgl.LngLatBounds(allCoordinatesForBounds[0], allCoordinatesForBounds[0])
+      );
+
+      map.current.fitBounds(bounds, {
+        padding: { top: 100, bottom: 150, left: 350, right: 50 },
+        duration: 1500,
+      });
+    }
+  }, [optimalDepartureData, mapLoaded, styleLoaded]);
 
   // Update plane positions during replay
   useEffect(() => {
