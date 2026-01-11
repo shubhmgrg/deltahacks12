@@ -577,6 +577,8 @@ export default function MapScene({
         const beforeId = map.current.getLayer("route-a-line")
           ? "route-a-line"
           : undefined;
+      // Heatmap Layer (added before planes so it renders behind them)
+      if (!map.current.getLayer("heatmap-layer")) {
         map.current.addLayer(
           {
             id: "heatmap-layer",
@@ -665,6 +667,8 @@ export default function MapScene({
           },
           beforeId
         ); // Add before route lines if possible
+          "join-split-markers-layer"
+        ); // Add before join-split markers
       }
 
       // Planes will be created by createPlaneLayers() after icon loading
@@ -866,6 +870,7 @@ export default function MapScene({
       } catch (e) {
         // Non-fatal cleanup
       }
+      // Clear all partner flight paths (will be cleaned up when data is set again)
       return;
     }
 
@@ -1297,6 +1302,29 @@ export default function MapScene({
     <div className="h-full relative bg-slate-50">
       <div ref={mapContainer} className="absolute inset-0 bg-slate-50" />
 
+      {/* Instructions overlay when no scenario selected */}
+      {!selectedScenario && mapLoaded && (
+        <div
+          className={`absolute bottom-8 left-1/2 -translate-x-1/2 backdrop-blur-sm px-6 py-3 rounded-full text-sm flex items-center gap-3 border ${
+            isDark
+              ? "bg-slate-900/80 text-slate-100 border-white/10"
+              : "bg-white/90 text-slate-900 border-slate-200"
+          }`}
+        >
+          <span className="animate-pulse">
+            Click and drag to rotate the globe
+          </span>
+          <span className={isDark ? "text-slate-400" : "text-slate-400"}>
+            |
+          </span>
+          <span>Scroll to zoom</span>
+          <span className={isDark ? "text-slate-400" : "text-slate-400"}>
+            |
+          </span>
+          <span>Select a flight from the sidebar</span>
+        </div>
+      )}
+
       {/* Style Switcher and Heatmap Toggle */}
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
         <DropdownMenu>
@@ -1374,6 +1402,70 @@ export default function MapScene({
       </div>
 
       {/* Route Legend removed */}
+      {/* Route Legend - only show when scenario selected */}
+      {selectedScenario && (
+        <div
+          className={`absolute top-4 right-16 backdrop-blur-md rounded-lg p-3 border text-xs ${
+            isDark
+              ? "bg-slate-900/80 border-white/10 text-slate-100"
+              : "bg-white/90 border-slate-200 text-slate-900"
+          }`}
+        >
+          <div
+            className={`font-mono text-[10px] uppercase tracking-wider mb-2 ${
+              isDark ? "text-slate-400" : "text-slate-500"
+            }`}
+          >
+            Legend
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-1 rounded"
+                style={{ backgroundColor: COLORS.routeA }}
+              />
+              <span className={isDark ? "text-slate-200" : "text-slate-700"}>
+                Leader Route
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-1 rounded"
+                style={{ backgroundColor: COLORS.routeB }}
+              />
+              <span className={isDark ? "text-slate-200" : "text-slate-700"}>
+                Follower Route
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-1 rounded"
+                style={{ backgroundColor: COLORS.formation }}
+              />
+              <span
+                className={
+                  isDark
+                    ? "text-emerald-400 font-medium"
+                    : "text-emerald-700 font-medium"
+                }
+              >
+                Formation Segment
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-4 h-1 rounded"
+                style={{
+                  backgroundColor: COLORS.connector,
+                }}
+              />
+              <span className={isDark ? "text-amber-400" : "text-amber-700"}>
+                Formation Link
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Info Popup */}
       {showPopup && popupData && (

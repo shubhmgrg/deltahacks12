@@ -828,6 +828,22 @@ def resolve_airport_coords_from_db(nodes_collection, airport_code: str) -> Optio
 
     return None
 
+    import pandas as pd
+    
+    if not os.path.exists(airports_file):
+        raise FileNotFoundError(f"Airports file not found: {airports_file}")
+    
+    df = pd.read_csv(airports_file)
+    airports = {}
+    
+    for _, row in df.iterrows():
+        code = str(row['IATA']).upper().strip()
+        lat = float(row['latitude'])
+        lon = float(row['longitude'])
+        airports[code] = (lat, lon)
+    
+    return airports
+
 def main():
     """Main function to run optimal departure time analysis."""
     parser = argparse.ArgumentParser(
@@ -875,6 +891,40 @@ Examples:
     
     origin_code = args.origin.upper()
     dest_code = args.dest.upper()
+    # Load airport data
+    print("\nLoading airport data...")
+    try:
+        airports_data = load_airports_data(args.airports)
+        print(f"✓ Loaded {len(airports_data)} airports")
+    except Exception as e:
+        print(f"✗ Error loading airports: {e}")
+        sys.exit(1)
+    
+    # Get airport coordinates
+    origin_coords = airports_data.get(args.origin.upper())
+    dest_coords = airports_data.get(args.dest.upper())
+    
+    if not origin_coords or not dest_coords:
+        missing = []
+        if not origin_coords:
+            missing.append(args.origin.upper())
+        if not dest_coords:
+            missing.append(args.dest.upper())
+        print(f"✗ Error: Airport coordinates not found for: {', '.join(missing)}")
+        print(f"   Available airports: {len(airports_data)} airports loaded")
+        print(f"   Please check the airport codes and ensure they are in the airports database.")
+        sys.exit(1)
+    
+    origin_lat, origin_lon = origin_coords
+    dest_lat, dest_lon = dest_coords
+    
+    # Estimate flight parameters if not provided
+    flight_distance_km = args.distance or haversine_distance(origin_lat, origin_lon, dest_lat, dest_lon)
+    flight_duration_minutes = args.duration or (flight_distance_km / FLIGHT_SPEED_KMH * 60)
+    
+    print(f"\nFlight Route: {args.origin} → {args.dest}")
+    print(f"  Distance: {flight_distance_km:.1f} km")
+    print(f"  Estimated duration: {flight_duration_minutes:.1f} minutes ({flight_duration_minutes/60:.1f} hours)")
     
     # Connect to MongoDB
     print("\nConnecting to MongoDB...")
