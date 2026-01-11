@@ -38,6 +38,7 @@ import sys
 import math
 import argparse
 import json
+import csv
 from typing import List, Dict, Tuple, Optional
 
 # Try to import tqdm for progress bar
@@ -774,21 +775,58 @@ def format_for_ui(result: Dict, origin: str, dest: str, origin_lat: float, origi
 
 def load_airports_data(airports_file: str = 'data/airports.csv') -> Dict[str, Tuple[float, float]]:
     """Load airport coordinates from CSV file."""
-    import pandas as pd
-    
     if not os.path.exists(airports_file):
         raise FileNotFoundError(f"Airports file not found: {airports_file}")
-    
-    df = pd.read_csv(airports_file)
     airports = {}
-    
-    for _, row in df.iterrows():
-        code = str(row['IATA']).upper().strip()
-        lat = float(row['latitude'])
-        lon = float(row['longitude'])
-        airports[code] = (lat, lon)
+
+    # Expected columns: IATA, latitude, longitude
+    # (Avoids requiring pandas at runtime.)
+    with open(airports_file, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            code = (row.get("IATA") or "").upper().strip()
+            if not code:
+                continue
+            try:
+                lat = float(row["latitude"])
+                lon = float(row["longitude"])
+            except Exception:
+                continue
+            airports[code] = (lat, lon)
     
     return airports
+
+
+def resolve_airport_coords_from_db(nodes_collection, airport_code: str) -> Optional[Tuple[float, float]]:
+    """
+    Fallback resolver when airports CSV isn't available:
+    approximate airport coordinates using flight_nodes.
+    """
+    code = (airport_code or "").upper().strip()
+    if not code:
+        return None
+
+    # Prefer origin: earliest node for any flight with this origin.
+    doc = (
+        nodes_collection.find({"origin": code}, {"lat": 1, "lon": 1, "time_index": 1})
+        .sort("time_index", 1)
+        .limit(1)
+    )
+    doc = next(iter(doc), None)
+    if doc and doc.get("lat") is not None and doc.get("lon") is not None:
+        return float(doc["lat"]), float(doc["lon"])
+
+    # Fallback to destination: latest node for any flight with this dest.
+    doc = (
+        nodes_collection.find({"dest": code}, {"lat": 1, "lon": 1, "time_index": 1})
+        .sort("time_index", -1)
+        .limit(1)
+    )
+    doc = next(iter(doc), None)
+    if doc and doc.get("lat") is not None and doc.get("lon") is not None:
+        return float(doc["lat"]), float(doc["lon"])
+
+    return None
 
 def main():
     """Main function to run optimal departure time analysis."""
@@ -826,40 +864,17 @@ Examples:
             print(f"Error: Invalid datetime format. Use YYYY-MM-DD HH:MM:SS or YYYY-MM-DD HH:MM")
             sys.exit(1)
     
-    # Load airport data
+    # Load airport data (optional). If missing, we'll fall back to DB-derived coords.
     print("\nLoading airport data...")
+    airports_data: Dict[str, Tuple[float, float]] = {}
     try:
         airports_data = load_airports_data(args.airports)
-        print(f"✓ Loaded {len(airports_data)} airports")
+        print(f"✓ Loaded {len(airports_data)} airports from {args.airports}")
     except Exception as e:
-        print(f"✗ Error loading airports: {e}")
-        sys.exit(1)
+        print(f"⚠ Airports CSV unavailable ({e}). Falling back to flight_nodes for coordinates.")
     
-    # Get airport coordinates
-    origin_coords = airports_data.get(args.origin.upper())
-    dest_coords = airports_data.get(args.dest.upper())
-    
-    if not origin_coords or not dest_coords:
-        missing = []
-        if not origin_coords:
-            missing.append(args.origin.upper())
-        if not dest_coords:
-            missing.append(args.dest.upper())
-        print(f"✗ Error: Airport coordinates not found for: {', '.join(missing)}")
-        print(f"   Available airports: {len(airports_data)} airports loaded")
-        print(f"   Please check the airport codes and ensure they are in the airports database.")
-        sys.exit(1)
-    
-    origin_lat, origin_lon = origin_coords
-    dest_lat, dest_lon = dest_coords
-    
-    # Estimate flight parameters if not provided
-    flight_distance_km = args.distance or haversine_distance(origin_lat, origin_lon, dest_lat, dest_lon)
-    flight_duration_minutes = args.duration or (flight_distance_km / FLIGHT_SPEED_KMH * 60)
-    
-    print(f"\nFlight Route: {args.origin} → {args.dest}")
-    print(f"  Distance: {flight_distance_km:.1f} km")
-    print(f"  Estimated duration: {flight_duration_minutes:.1f} minutes ({flight_duration_minutes/60:.1f} hours)")
+    origin_code = args.origin.upper()
+    dest_code = args.dest.upper()
     
     # Connect to MongoDB
     print("\nConnecting to MongoDB...")
@@ -897,6 +912,33 @@ Examples:
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+    # Resolve airport coordinates (CSV first, DB fallback)
+    origin_coords = airports_data.get(origin_code) or resolve_airport_coords_from_db(nodes_collection, origin_code)
+    dest_coords = airports_data.get(dest_code) or resolve_airport_coords_from_db(nodes_collection, dest_code)
+
+    if not origin_coords or not dest_coords:
+        missing = []
+        if not origin_coords:
+            missing.append(origin_code)
+        if not dest_coords:
+            missing.append(dest_code)
+        print(f"✗ Error: Airport coordinates not found for: {', '.join(missing)}")
+        if airports_data:
+            print(f"   Available airports (CSV): {len(airports_data)} loaded")
+        print("   Please check the airport codes and/or ensure flight_nodes contains data for them.")
+        sys.exit(1)
+
+    origin_lat, origin_lon = origin_coords
+    dest_lat, dest_lon = dest_coords
+
+    # Estimate flight parameters if not provided
+    flight_distance_km = args.distance or haversine_distance(origin_lat, origin_lon, dest_lat, dest_lon)
+    flight_duration_minutes = args.duration or (flight_distance_km / FLIGHT_SPEED_KMH * 60)
+
+    print(f"\nFlight Route: {args.origin} → {args.dest}")
+    print(f"  Distance: {flight_distance_km:.1f} km")
+    print(f"  Estimated duration: {flight_duration_minutes:.1f} minutes ({flight_duration_minutes/60:.1f} hours)")
     
     # Find optimal departure time
     print("\n" + "="*70)

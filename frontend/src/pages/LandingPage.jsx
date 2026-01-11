@@ -1,404 +1,845 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, useInView, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Plane, Leaf, Clock, Users, TrendingUp, Zap, Shield, Globe } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import TripBar from '@/components/TripBar';
+import { motion, useInView, AnimatePresence } from 'framer-motion';
+import {
+  ArrowRight, Play, Plane, Fuel, Leaf, Wind, BarChart3,
+  MapPin, Shield, RefreshCw, Route, Zap, Globe, ChevronRight
+} from 'lucide-react';
 
-export default function LandingPage() {
-  const navigate = useNavigate();
-  const heroRef = useRef(null);
-  const statsRef = useRef(null);
-  const { scrollYProgress } = useScroll();
-  const heroY = useTransform(scrollYProgress, [0, 1], ['0%', '50%']);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
-  const statsInView = useInView(statsRef, { once: true, margin: '-100px' });
 
-  // Animated counter
-  const [counters, setCounters] = useState({ flights: 0, co2: 0, fuel: 0 });
-  const targetCounters = { flights: 1247, co2: 342, fuel: 1250 };
+// ============================================================================
+// HOOKS
+// ============================================================================
+
+function useAnimatedCounter(end, duration = 2000, trigger = true) {
+  const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (statsInView) {
-      const duration = 2000;
-      const steps = 60;
-      const interval = duration / steps;
+    if (!trigger) return;
+    let start = null;
+    const animate = (ts) => {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      setCount(Math.floor(end * (1 - Math.pow(1 - progress, 3))));
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }, [end, duration, trigger]);
 
-      const timers = Object.keys(targetCounters).map((key) => {
-        const target = targetCounters[key];
-        let current = 0;
-        const increment = target / steps;
+  return count;
+}
 
-        const timer = setInterval(() => {
-          current += increment;
-          if (current >= target) {
-            current = target;
-            clearInterval(timer);
-          }
-          setCounters((prev) => ({ ...prev, [key]: Math.floor(current) }));
-        }, interval);
+function useScrollReveal(threshold = 0.2) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, amount: threshold });
+  return { ref, isInView };
+}
 
-        return timer;
-      });
+// ============================================================================
+// TOPBAR
+// ============================================================================
 
-      return () => timers.forEach(clearInterval);
-    }
-  }, [statsInView]);
-
-  const handleTryDemo = () => {
-    navigate('/app');
-  };
-
-  const handleOpenApp = () => {
-    navigate('/app');
-  };
-
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 },
-  };
-
-  const staggerContainer = {
-    initial: {},
-    animate: {
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
+function Topbar() {
+  const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden">
-      {/* Top Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/transparent%20skysync.png" alt="SkySync" className="h-8 w-auto" />
-            <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-              SkySync
-            </span>
+    <nav className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 py-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div
+          className="flex items-center justify-between h-16 px-5 sm:px-8 rounded-2xl transition-all duration-300"
+        >
+          {/* Logo */}
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <img src="/landscape.png" alt="SkySync" className="h-12 w-auto" />
           </div>
+
+
+          {/* Right side */}
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={handleOpenApp} className="text-slate-300 hover:text-white">
-              Features
-            </Button>
-            <Button variant="ghost" onClick={handleOpenApp} className="text-slate-300 hover:text-white">
-              About
-            </Button>
-            <Button variant="outline" onClick={handleOpenApp} className="border-slate-700 hover:bg-slate-800">
-              Open App
-            </Button>
+            <button
+              onClick={() => navigate('/app')}
+              className="text-base py-2.5 px-5 rounded-xl font-semibold flex items-center gap-2 transition-all duration-200 hover:scale-[1.02]"
+              style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.3)', backdropFilter: 'blur(8px)' }}
+            >
+              Run Simulation
+              <ArrowRight size={18} />
+            </button>
           </div>
         </div>
-      </nav>
+      </div>
+    </nav>
+  );
+}
 
-      {/* Hero Section */}
-      <motion.section
-        ref={heroRef}
-        style={{ y: heroY, opacity: heroOpacity }}
-        className="relative min-h-screen flex items-center justify-center px-6 pt-24 pb-20 overflow-hidden"
+// ============================================================================
+// RADAR DISC CENTERPIECE
+// ============================================================================
+
+function RadarDisc({ animate }) {
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    if (!animate) return;
+    const timers = [
+      setTimeout(() => setPhase(1), 300),
+      setTimeout(() => setPhase(2), 800),
+      setTimeout(() => setPhase(3), 1600),
+      setTimeout(() => setPhase(4), 2200),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [animate]);
+
+  return (
+    <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96">
+      {/* Base disc */}
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={phase >= 1 ? { scale: 1, opacity: 1 } : {}}
+        transition={{ duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }}
+        className="absolute inset-0 radar-disc"
       >
-        {/* Animated background gradient */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        </div>
+        {/* Grid */}
+        <div className="absolute inset-0 bg-grid opacity-50" />
 
-        <div className="relative z-10 max-w-7xl mx-auto w-full">
-          <motion.div
-            initial="initial"
-            animate="animate"
-            variants={staggerContainer}
-            className="text-center space-y-8"
-          >
-            <motion.h1
-              variants={fadeInUp}
-              className="text-5xl md:text-7xl font-bold leading-tight"
+        {/* Rings */}
+        {[25, 50, 75].map((size) => (
+          <div key={size} className="radar-ring" style={{ width: `${size}%`, height: `${size}%` }} />
+        ))}
+
+        {/* Route arc SVG */}
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+          <defs>
+            <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style={{ stopColor: 'var(--accent-primary)', stopOpacity: 0 }} />
+              <stop offset="50%" style={{ stopColor: 'var(--accent-primary)', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: 'var(--accent-primary)', stopOpacity: 0 }} />
+            </linearGradient>
+          </defs>
+          <path
+            d="M20,60 Q50,25 80,60"
+            fill="none"
+            stroke="url(#arcGrad)"
+            strokeWidth="2"
+            className={`arc-draw ${phase >= 2 ? 'animate' : ''}`}
+            style={{ animationDelay: '0.2s' }}
+          />
+          <path
+            d="M25,70 Q50,40 75,70"
+            fill="none"
+            stroke="url(#arcGrad)"
+            strokeWidth="1.5"
+            className={`arc-draw ${phase >= 2 ? 'animate' : ''}`}
+            style={{ animationDelay: '0.5s' }}
+          />
+        </svg>
+
+        {/* Planes */}
+        <motion.div
+          className="absolute"
+          style={{ top: '35%', left: '25%' }}
+          initial={{ x: -30, y: 20, opacity: 0, rotate: -30 }}
+          animate={phase >= 3 ? { x: 0, y: 0, opacity: 1, rotate: 45 } : {}}
+          transition={{ duration: 1, ease: [0.2, 0.8, 0.2, 1] }}
+        >
+          <Plane size={24} style={{ color: 'var(--accent-primary)' }} />
+        </motion.div>
+
+        <motion.div
+          className="absolute"
+          style={{ top: '30%', left: '35%' }}
+          initial={{ x: -40, y: 30, opacity: 0, rotate: -30 }}
+          animate={phase >= 3 ? { x: 0, y: 0, opacity: 1, rotate: 45 } : {}}
+          transition={{ duration: 1, delay: 0.15, ease: [0.2, 0.8, 0.2, 1] }}
+        >
+          <Plane size={20} style={{ color: 'var(--accent-secondary)' }} />
+        </motion.div>
+
+        {/* Lock indicator */}
+        <AnimatePresence>
+          {phase >= 4 && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              className="absolute top-[28%] left-[45%] chip chip-accent text-xs animate-pulse-glow"
             >
-              <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                Sync Flights,
-              </span>
+              <Shield size={10} />
+              Locked
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </div>
+  );
+}
+
+// ============================================================================
+// STATS STRIP
+// ============================================================================
+
+function StatsStrip({ animate }) {
+  const fuelSaved = useAnimatedCounter(4.7, 2000, animate);
+  const co2Avoided = useAnimatedCounter(2847, 2200, animate);
+  const pairs = useAnimatedCounter(156, 1800, animate);
+  const confidence = useAnimatedCounter(94, 2000, animate);
+
+  const stats = [
+    { label: 'Fuel Saved', value: `${fuelSaved.toFixed(1)}%`, sub: '~1,200 kg', color: '#ffffff' },
+    { label: 'CO₂ Avoided', value: co2Avoided.toLocaleString(), sub: 'kg per pair', color: '#ffffff' },
+    { label: 'Flight Pairs', value: pairs, sub: 'matched today', color: '#ffffff' },
+    { label: 'Confidence', value: `${confidence}%`, sub: 'avg. score', color: '#ffffff' },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+      {stats.map((stat, i) => (
+        <motion.div
+          key={stat.label}
+          initial={{ opacity: 0, y: 20 }}
+          animate={animate ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.5, delay: 0.1 * i }}
+          className="text-center p-4"
+        >
+          <p className="font-mono text-2xl sm:text-3xl font-bold" style={{ color: stat.color }}>
+            {stat.value}
+          </p>
+          <p className="text-sm font-medium mt-1" style={{ color: '#ffffff' }}>{stat.label}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>{stat.sub}</p>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// HERO SECTION
+// ============================================================================
+
+function Hero() {
+  const navigate = useNavigate();
+  const [loaded, setLoaded] = useState(false);
+  const [origin, setOrigin] = useState('YYZ');
+  const [dest, setDest] = useState('LHR');
+
+  useEffect(() => {
+    setLoaded(true);
+  }, []);
+
+  return (
+    <section id="about" className="relative h-full pt-24 pb-8 px-4 sm:px-6 flex flex-col justify-center">
+      <div className="relative z-10 max-w-7xl mx-auto w-full">
+        <div className="grid lg:grid-cols-2 gap-8 items-center">
+          {/* Left: Text */}
+          <div className="text-center lg:text-left">
+            <motion.h1
+              initial={{ opacity: 0, filter: 'blur(10px)', y: 30 }}
+              animate={loaded ? { opacity: 1, filter: 'blur(0)', y: 0 } : {}}
+              transition={{ duration: 0.8, delay: 0.1 }}
+              className="font-heading text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.1]"
+              style={{ color: '#ffffff' }}
+            >
+              Formation flight.
               <br />
-              <span className="text-white">Save the Planet</span>
+              <span style={{ color: '#ffffff' }}>Real-world savings.</span>
             </motion.h1>
 
             <motion.p
-              variants={fadeInUp}
-              className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              animate={loaded ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: 0.25 }}
+              className="mt-4 text-lg sm:text-xl max-w-xl mx-auto lg:mx-0"
+              style={{ color: 'rgba(255, 255, 255, 0.8)' }}
             >
-              Find optimal flight formations to reduce fuel consumption and CO₂ emissions.
-              Join the future of sustainable aviation.
+              Match flights → Simulate formation path → Estimate fuel & CO₂ savings.
+              Backed by research showing 2–7% efficiency gains.
             </motion.p>
 
+            {/* Simulation Form */}
             <motion.div
-              variants={fadeInUp}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={loaded ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="mt-6 p-4 sm:p-6 max-w-xl mx-auto lg:mx-0 rounded-2xl"
+              style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.2)' }}
             >
-              <Button
-                size="lg"
-                onClick={handleTryDemo}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-6 text-lg"
-              >
-                Try Demo
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={handleOpenApp}
-                className="border-slate-700 hover:bg-slate-800 px-8 py-6 text-lg"
-              >
-                Open App
-              </Button>
-            </motion.div>
-
-            {/* Trip Bar - Floating Card */}
-            <motion.div
-              variants={fadeInUp}
-              className="pt-12"
-            >
-              <TripBar />
-            </motion.div>
-
-            {/* Metric Counter Row */}
-            <motion.div
-              ref={statsRef}
-              variants={fadeInUp}
-              className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-16 max-w-4xl mx-auto"
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={statsInView ? { opacity: 1, scale: 1 } : {}}
-                transition={{ duration: 0.5 }}
-                className="text-center"
-              >
-                <div className="text-4xl md:text-5xl font-bold text-blue-400 mb-2">
-                  {counters.flights}+
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Origin</label>
+                  <input
+                    type="text"
+                    value={origin}
+                    onChange={(e) => setOrigin(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2 rounded-lg text-white font-medium"
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', border: '1px solid rgba(255, 255, 255, 0.2)' }}
+                    maxLength={3}
+                  />
                 </div>
-                <div className="text-sm text-slate-400 uppercase tracking-wider">Flights Matched</div>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={statsInView ? { opacity: 1, scale: 1 } : {}}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="text-center"
-              >
-                <div className="text-4xl md:text-5xl font-bold text-emerald-400 mb-2">
-                  {counters.co2}+
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Destination</label>
+                  <input
+                    type="text"
+                    value={dest}
+                    onChange={(e) => setDest(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2 rounded-lg text-white font-medium"
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', border: '1px solid rgba(255, 255, 255, 0.2)' }}
+                    maxLength={3}
+                  />
                 </div>
-                <div className="text-sm text-slate-400 uppercase tracking-wider">Tons CO₂ Saved</div>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={statsInView ? { opacity: 1, scale: 1 } : {}}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="text-center"
-              >
-                <div className="text-4xl md:text-5xl font-bold text-cyan-400 mb-2">
-                  {counters.fuel}+
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Date</label>
+                  <input
+                    type="date"
+                    defaultValue="2025-01-15"
+                    className="w-full px-3 py-2 rounded-lg text-white font-medium"
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', border: '1px solid rgba(255, 255, 255, 0.2)', colorScheme: 'dark' }}
+                  />
                 </div>
-                <div className="text-sm text-slate-400 uppercase tracking-wider">Tons Fuel Saved</div>
-              </motion.div>
+              </div>
+              <button
+                onClick={() => navigate('/app')}
+                className="w-full py-3 px-6 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 hover:scale-[1.02]"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.3)' }}
+              >
+                Run Simulation
+                <ArrowRight size={16} />
+              </button>
             </motion.div>
-          </motion.div>
-        </div>
-      </motion.section>
+          </div>
 
-      {/* How It Works Section */}
-      <section className="py-24 px-6 bg-slate-900/50">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">How It Works</h2>
-            <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-              Our advanced algorithm matches flights with similar routes and schedules
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: <Plane className="h-8 w-8" />,
-                title: 'Find Matches',
-                description: 'Our system analyzes thousands of flights to find optimal formation opportunities.',
-                iconBg: 'bg-blue-500/10',
-                iconColor: 'text-blue-400',
-              },
-              {
-                icon: <Plane className="h-8 w-8" />,
-                title: 'Form Formation',
-                description: 'Flights sync up in the air, with one leading and the other following in the slipstream.',
-                iconBg: 'bg-cyan-500/10',
-                iconColor: 'text-cyan-400',
-              },
-              {
-                icon: <Leaf className="h-8 w-8" />,
-                title: 'Save Resources',
-                description: 'Reduce fuel consumption and CO₂ emissions by up to 7% per flight formation.',
-                iconBg: 'bg-emerald-500/10',
-                iconColor: 'text-emerald-400',
-              },
-            ].map((step, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-              >
-                <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors h-full">
-                  <CardContent className="p-8 text-center">
-                    <div className={`inline-flex p-4 rounded-xl ${step.iconBg} ${step.iconColor} mb-4`}>
-                      {step.icon}
-                    </div>
-                    <h3 className="text-2xl font-bold mb-3">{step.title}</h3>
-                    <p className="text-slate-400">{step.description}</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+          {/* Right: Centerpiece */}
+          <div className="relative flex justify-center items-center hidden lg:flex">
+            <RadarDisc animate={loaded} />
           </div>
         </div>
-      </section>
 
-      {/* Features Section */}
-      <section className="py-24 px-6">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">Features</h2>
-            <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-              Everything you need to optimize flight formations
-            </p>
-          </motion.div>
+        {/* Stats strip */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={loaded ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6, delay: 0.6 }}
+          className="mt-8 pt-6"
+          style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}
+        >
+          <StatsStrip animate={loaded} />
+        </motion.div>
+      </div>
+    </section>
+  );
+}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                icon: <Clock className="h-6 w-6" />,
-                title: 'Real-time Matching',
-                description: 'Get instant flight formation opportunities',
-              },
-              {
-                icon: <TrendingUp className="h-6 w-6" />,
-                title: 'Performance Analytics',
-                description: 'Track fuel savings and emissions reduction',
-              },
-              {
-                icon: <Zap className="h-6 w-6" />,
-                title: 'Fast Processing',
-                description: 'Advanced algorithms for quick results',
-              },
-              {
-                icon: <Shield className="h-6 w-6" />,
-                title: 'Safety First',
-                description: 'All formations meet strict safety standards',
-              },
-              {
-                icon: <Globe className="h-6 w-6" />,
-                title: 'Global Coverage',
-                description: 'Works with flights worldwide',
-              },
-              {
-                icon: <Users className="h-6 w-6" />,
-                title: 'Multi-airline',
-                description: 'Compatible across different airlines',
-              },
-              {
-                icon: <Leaf className="h-6 w-6" />,
-                title: 'Carbon Credits',
-                description: 'Earn credits for reduced emissions',
-              },
-              {
-                icon: <Plane className="h-6 w-6" />,
-                title: 'Flight Replay',
-                description: 'Visualize formations in 3D',
-              },
-            ].map((feature, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
-              >
-                <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors h-full">
-                  <CardContent className="p-6">
-                    <div className="text-blue-400 mb-3">{feature.icon}</div>
-                    <h3 className="font-semibold mb-2">{feature.title}</h3>
-                    <p className="text-sm text-slate-400">{feature.description}</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+
+
+// ============================================================================
+// AURORA GRADIENT SECTION
+// ============================================================================
+
+function AuroraGradientSection() {
+  return (
+    <section className="relative h-48 sm:h-64 overflow-hidden">
+      <div className="aurora-gradient h-full" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white" />
+    </section>
+  );
+}
+
+// ============================================================================
+// HOW IT WORKS
+// ============================================================================
+
+function HowItWorks() {
+  const { ref, isInView } = useScrollReveal(0.2);
+
+  const steps = [
+    { icon: Route, title: 'Match flights', desc: 'Find flights with overlapping routes and compatible timing.' },
+    { icon: Shield, title: 'Simulate formation', desc: 'Model safe formation paths respecting separation and altitude.' },
+    { icon: Leaf, title: 'Estimate savings', desc: 'Calculate fuel & CO₂ reduction based on aerodynamic research.' },
+  ];
+
+  return (
+    <section id="simulation" className="py-24 sm:py-32 px-4 sm:px-6" ref={ref}>
+      <div className="max-w-5xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          className="text-center mb-16"
+        >
+          <p className="text-sm font-semibold uppercase tracking-widest mb-3" style={{ color: '#93c5fd' }}>
+            Process
+          </p>
+          <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold" style={{ color: '#ffffff' }}>
+            How it works
+          </h2>
+        </motion.div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          {steps.map((step, i) => (
+            <motion.div
+              key={step.title}
+              initial={{ opacity: 0, y: 30 }}
+              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: 0.15 * i }}
+              className="card p-6 text-center"
+            >
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--accent-glow)' }}>
+                <step.icon size={26} style={{ color: 'var(--accent-primary)' }} />
+              </div>
+              <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>0{i + 1}</span>
+              <h3 className="font-heading text-lg font-semibold mt-2" style={{ color: 'var(--text-primary)' }}>{step.title}</h3>
+              <p className="text-sm mt-2" style={{ color: 'var(--text-tertiary)' }}>{step.desc}</p>
+            </motion.div>
+          ))}
         </div>
-      </section>
 
-      {/* Footer CTA */}
-      <section className="py-24 px-6 bg-gradient-to-r from-blue-600/20 to-cyan-600/20">
-        <div className="max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Ready to Sync Your Flights?
-            </h2>
-            <p className="text-xl text-slate-300 mb-8">
-              Join thousands of airlines reducing emissions through smart flight formations
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button
-                size="lg"
-                onClick={handleTryDemo}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-8 py-6 text-lg"
-              >
-                Get Started
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={handleOpenApp}
-                className="border-slate-700 hover:bg-slate-800 px-8 py-6 text-lg"
-              >
-                Learn More
-              </Button>
+        {/* Research note */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ delay: 0.6 }}
+          id="research"
+          className="mt-12 card p-6"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--accent-glow)' }}>
+              <BarChart3 size={18} style={{ color: 'var(--accent-primary)' }} />
             </div>
+            <div>
+              <h4 className="font-heading font-semibold" style={{ color: 'var(--text-primary)' }}>Research & Assumptions</h4>
+              <ul className="mt-2 space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <li>• Efficiency range: 2–7% based on NASA/Airbus formation flight studies</li>
+                <li>• Constraints: schedule overlap, safe separation (1.5–3km), altitude matching</li>
+                <li>• This is a proof-of-concept prototype built at DeltaHacks XI</li>
+              </ul>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
+// FEATURES ORBIT
+// ============================================================================
+
+function FeaturesOrbit() {
+  const { ref, isInView } = useScrollReveal(0.3);
+  const [active, setActive] = useState(0);
+
+  const features = [
+    { icon: Route, label: 'Route Matching', desc: 'Intelligent pairing of compatible flight paths' },
+    { icon: Shield, label: 'Safety Constraints', desc: 'Respects separation, airspace, weather limits' },
+    { icon: Wind, label: 'Drag Model', desc: 'Wake surfing physics for trailing aircraft' },
+    { icon: Leaf, label: 'CO₂ Estimator', desc: 'Real-time emissions reduction calculator' },
+    { icon: RefreshCw, label: 'Replay', desc: 'Animated visualization of formation flights' },
+  ];
+
+  return (
+    <section id="impact" className="py-24 sm:py-32 px-4 sm:px-6" ref={ref}>
+      <div className="max-w-5xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          className="text-center mb-16"
+        >
+          <p className="text-sm font-semibold uppercase tracking-widest mb-3" style={{ color: '#93c5fd' }}>
+            Features
+          </p>
+          <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold" style={{ color: '#ffffff' }}>
+            Simulation Engine
+          </h2>
+        </motion.div>
+
+        <div className="relative flex flex-col lg:flex-row items-center gap-12">
+          {/* Center */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={isInView ? { opacity: 1, scale: 1 } : {}}
+            className="relative w-48 h-48 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}
+          >
+            <div className="text-center">
+              <Zap size={32} style={{ color: 'var(--accent-primary)' }} className="mx-auto mb-2" />
+              <span className="font-heading font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Engine</span>
+            </div>
+
+            {/* Orbit items */}
+            {features.map((f, i) => {
+              const angle = (i / features.length) * 2 * Math.PI - Math.PI / 2;
+              const radius = 100;
+              const x = Math.cos(angle) * radius;
+              const y = Math.sin(angle) * radius;
+              return (
+                <motion.button
+                  key={f.label}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={isInView ? { opacity: 1, scale: 1 } : {}}
+                  transition={{ delay: 0.3 + i * 0.1 }}
+                  className={`absolute w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${active === i ? 'animate-pulse-glow' : ''
+                    }`}
+                  style={{
+                    left: `calc(50% + ${x}px - 24px)`,
+                    top: `calc(50% + ${y}px - 24px)`,
+                    backgroundColor: active === i ? 'var(--accent-primary)' : 'var(--bg-card)',
+                    border: '1px solid var(--border-primary)',
+                  }}
+                  onClick={() => setActive(i)}
+                >
+                  <f.icon size={20} style={{ color: active === i ? 'var(--text-inverse)' : 'var(--accent-primary)' }} />
+                </motion.button>
+              );
+            })}
+          </motion.div>
+
+          {/* Caption */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={isInView ? { opacity: 1, x: 0 } : {}}
+            transition={{ delay: 0.5 }}
+            className="card p-6 flex-1 max-w-md"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              {React.createElement(features[active].icon, { size: 24, style: { color: 'var(--accent-primary)' } })}
+              <h3 className="font-heading text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {features[active].label}
+              </h3>
+            </div>
+            <p style={{ color: 'var(--text-secondary)' }}>{features[active].desc}</p>
           </motion.div>
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Footer */}
-      <footer className="py-8 px-6 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between text-slate-400 text-sm">
-          <div className="flex items-center gap-3 mb-4 md:mb-0">
-            <img src="/transparent%20skysync.png" alt="SkySync" className="h-6 w-auto" />
-            <span>SkySync © 2024</span>
+// ============================================================================
+// LANDING PAGE MAP PREVIEW
+// ============================================================================
+
+// Sample flight routes for demonstration
+const SAMPLE_ROUTES = [
+  { from: [-79.63, 43.68], to: [-0.46, 51.47], color: '#6366f1' },  // Toronto to London (Indigo)
+  { from: [-73.78, 40.64], to: [2.55, 49.01], color: '#8b5cf6' },   // New York to Paris (Purple)
+  { from: [-118.41, 33.94], to: [139.78, 35.55], color: '#22c55e' } // LA to Tokyo (Green)
+];
+
+// Generate a great circle arc between two points
+function generateArc(start, end, numPoints = 50) {
+  const coords = [];
+  for (let i = 0; i <= numPoints; i++) {
+    const t = i / numPoints;
+    // Simple linear interpolation with altitude curve
+    const lng = start[0] + t * (end[0] - start[0]);
+    const lat = start[1] + t * (end[1] - start[1]);
+    coords.push([lng, lat]);
+  }
+  return coords;
+}
+
+function LandingMapPreview() {
+  const mapContainer = useRef(null);
+  const map = useRef(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+  useEffect(() => {
+    if (!mapboxToken || map.current) return;
+
+    // Dynamic import to avoid SSR issues
+    import('mapbox-gl').then((mapboxgl) => {
+      import('mapbox-gl/dist/mapbox-gl.css');
+
+      mapboxgl.default.accessToken = mapboxToken;
+
+      map.current = new mapboxgl.default.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [-40, 35],
+        zoom: 1.5,
+        pitch: 20,
+        bearing: 0,
+        projection: 'globe',
+        interactive: false, // Disable interactions for preview
+      });
+
+      map.current.on('style.load', () => {
+        // Set atmosphere
+        map.current.setFog({
+          'horizon-blend': 0.02,
+          'space-color': '#1a1a2e',
+          'star-intensity': 0.1,
+        });
+
+        // Add flight route sources and layers
+        SAMPLE_ROUTES.forEach((route, i) => {
+          const arcCoords = generateArc(route.from, route.to);
+
+          map.current.addSource(`route-${i}`, {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: arcCoords,
+              },
+            },
+          });
+
+          // Glow layer
+          map.current.addLayer({
+            id: `route-glow-${i}`,
+            type: 'line',
+            source: `route-${i}`,
+            paint: {
+              'line-color': route.color,
+              'line-width': 6,
+              'line-opacity': 0.3,
+              'line-blur': 4,
+            },
+          });
+
+          // Main line
+          map.current.addLayer({
+            id: `route-line-${i}`,
+            type: 'line',
+            source: `route-${i}`,
+            paint: {
+              'line-color': route.color,
+              'line-width': 2,
+              'line-opacity': 0.9,
+            },
+          });
+        });
+
+        setMapLoaded(true);
+
+        // Start spinning animation
+        let bearing = 0;
+        const spin = () => {
+          if (!map.current) return;
+          bearing += 0.15;
+          map.current.setBearing(bearing);
+          requestAnimationFrame(spin);
+        };
+        spin();
+      });
+    });
+
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, [mapboxToken]);
+
+  if (!mapboxToken) {
+    return (
+      <div className="h-52 rounded-xl mb-6 flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+        <span style={{ color: 'var(--text-muted)' }}>Map preview requires Mapbox token</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-52 rounded-xl mb-6 relative overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+      <div ref={mapContainer} className="absolute inset-0" />
+      {!mapLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--accent-primary)' }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// DEMO PREVIEW
+// ============================================================================
+
+function DemoPreview() {
+  const navigate = useNavigate();
+  const { ref, isInView } = useScrollReveal(0.2);
+  const [origin, setOrigin] = useState('YYZ');
+  const [dest, setDest] = useState('LHR');
+
+  return (
+    <section className="py-24 sm:py-32 px-4 sm:px-6" ref={ref}>
+      <div className="max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          className="text-center mb-12"
+        >
+          <p className="text-sm font-semibold uppercase tracking-widest mb-3" style={{ color: '#93c5fd' }}>
+            Try It
+          </p>
+          <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold" style={{ color: '#ffffff' }}>
+            Run a simulation
+          </h2>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={isInView ? { opacity: 1, y: 0 } : {}}
+          transition={{ delay: 0.2 }}
+          className="card-solid p-6 sm:p-8"
+        >
+          {/* Mapbox Globe Preview */}
+          <LandingMapPreview />
+
+          {/* Input form */}
+          <div className="grid sm:grid-cols-3 gap-4 mb-6">
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Origin</label>
+              <input type="text" value={origin} onChange={(e) => setOrigin(e.target.value.toUpperCase())} className="input" maxLength={3} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Destination</label>
+              <input type="text" value={dest} onChange={(e) => setDest(e.target.value.toUpperCase())} className="input" maxLength={3} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Date</label>
+              <input type="date" defaultValue="2025-01-15" className="input" />
+            </div>
           </div>
-          <div className="flex gap-6">
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
-            <a href="#" className="hover:text-white transition-colors">Contact</a>
+
+          <button onClick={() => navigate('/app')} className="btn-primary w-full sm:w-auto">
+            Simulate
+            <ArrowRight size={16} />
+          </button>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
+// FINAL CTA
+// ============================================================================
+
+function FinalCTA() {
+  const navigate = useNavigate();
+  const { ref, isInView } = useScrollReveal(0.3);
+
+  return (
+    <section className="py-24 sm:py-32 px-4 sm:px-6" ref={ref}>
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={isInView ? { opacity: 1, y: 0 } : {}}
+        className="max-w-3xl mx-auto text-center card p-12"
+      >
+        <h2 className="font-heading text-3xl sm:text-4xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+          Ready to explore formation efficiency?
+        </h2>
+        <p className="text-lg mb-8" style={{ color: 'var(--text-secondary)' }}>
+          Run your first simulation and see potential fuel savings across real flight routes.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <button onClick={() => navigate('/app')} className="btn-primary">
+            Run your first simulation
+            <ArrowRight size={16} />
+          </button>
+          <button className="btn-secondary">
+            Read research notes
+          </button>
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+// ============================================================================
+// FOOTER
+// ============================================================================
+
+function Footer() {
+  return (
+    <footer className="py-8 px-4 sm:px-6" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <img src="/landscape.png" alt="SkySync" className="h-7 w-auto" />
+          <span className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>DeltaHacks XI · 2025</span>
+        </div>
+        <p className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>
+          A hackathon experiment in flight coordination
+        </p>
+      </div>
+    </footer>
+  );
+}
+
+// ============================================================================
+// MAIN LANDING PAGE
+// ============================================================================
+
+export default function LandingPage() {
+  const [appReady, setAppReady] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFadeOut(true);
+      setTimeout(() => setAppReady(true), 300);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!appReady) {
+    return (
+      <div
+        className={`fixed inset-0 z-[100] flex items-center justify-center transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'
+          }`}
+      >
+        {/* Video background for loading screen */}
+        <div className="absolute inset-0">
+          <video
+            src="/2823622-uhd_3840_2160_30fps.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
+
+        <div className="loading-screen-wrapper relative z-10">
+          <div className="loading-container">
+            {/* Animated glow rings */}
+            <div className="glow-ring glow-ring-1" style={{ borderColor: 'rgba(255, 255, 255, 0.3)' }}></div>
+            <div className="glow-ring glow-ring-2" style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}></div>
+            <div className="glow-ring glow-ring-3" style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }}></div>
+
+            {/* Main logo */}
+            <img
+              src="/transparent%20skysync.png"
+              alt="SkySync Loading..."
+              className="loading-logo"
+            />
           </div>
         </div>
-      </footer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen overflow-hidden relative">
+      {/* Full-screen video background */}
+      <div className="absolute inset-0">
+        <video
+          src="/2823622-uhd_3840_2160_30fps.mp4"
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </div>
+      <Topbar />
+      <main className="relative z-10 h-full">
+        <Hero />
+      </main>
     </div>
   );
 }

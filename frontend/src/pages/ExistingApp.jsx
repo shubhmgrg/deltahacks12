@@ -395,23 +395,66 @@ export default function ExistingApp() {
     }, 100);
   }, [selectedScenario, playbackSpeed]);
 
+  // Clear all map routes from either Best Opportunities or Optimal Departure
+  const handleClearAll = useCallback(() => {
+    // Clear selections
+    setSelectedMatch(null);
+    setSelectedScenario(null);
+
+    // Clear optimal departure overlays
+    setOptimalDepartureData(null);
+    setOptimalDepartureLoading(false);
+
+    // Stop any existing replay
+    if (replayController.current) {
+      replayController.current.stop();
+      replayController.current.destroy();
+      replayController.current = null;
+    }
+
+    setReplayState({
+      isPlaying: false,
+      progress: 0,
+      phase: REPLAY_STATES.IDLE,
+      leaderPosition: null,
+      followerPosition: null,
+      accumulatedFuel: 0,
+      accumulatedCO2: 0,
+      isLocked: false,
+      showConnector: false,
+    });
+    setIsReplaying(false);
+  }, []);
+
   if (!appReady) {
     return (
       <div
-        className={`fixed inset-0 z-[100] flex items-center justify-center text-slate-900 transition-opacity duration-300 ${
-          fadeOut ? "opacity-0" : "opacity-100"
+        className={`fixed inset-0 z-[100] flex items-center justify-center transition-opacity duration-300 ${
+          fadeOut ? 'opacity-0' : 'opacity-100'
         }`}
         style={{
           backgroundColor: theme === "dark" ? "#020617" : "#f8fafc",
           color: theme === "dark" ? "#f8fafc" : "#0f172a",
         }}
       >
-        <div className="loading-screen-wrapper">
+        {/* Video background for loading screen */}
+        <div className="absolute inset-0">
+          <video
+            src="/2823622-uhd_3840_2160_30fps.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </div>
+
+        <div className="loading-screen-wrapper relative z-10">
           <div className="loading-container">
             {/* Animated glow rings */}
-            <div className="glow-ring glow-ring-1"></div>
-            <div className="glow-ring glow-ring-2"></div>
-            <div className="glow-ring glow-ring-3"></div>
+            <div className="glow-ring glow-ring-1" style={{ borderColor: 'rgba(255, 255, 255, 0.3)' }}></div>
+            <div className="glow-ring glow-ring-2" style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}></div>
+            <div className="glow-ring glow-ring-3" style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }}></div>
 
             {/* Main logo */}
             <img
@@ -427,10 +470,8 @@ export default function ExistingApp() {
 
   return (
     <div
-      className={`h-screen flex flex-col overflow-hidden font-sans ${
-        theme === "dark"
-          ? "bg-slate-950 text-slate-100"
-          : "bg-slate-50 text-slate-900"
+      className={`app-root flex flex-col overflow-hidden font-sans ${
+        theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
       }`}
     >
       {/* Top Bar */}
@@ -482,6 +523,7 @@ export default function ExistingApp() {
           }}
           onOptimalDepartureLoad={handleOptimalDepartureLoad}
           onOptimalDepartureReplay={handleReplayOptimalDeparture}
+          onClearAll={handleClearAll}
         />
 
         {/* Main View */}
