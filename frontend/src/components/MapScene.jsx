@@ -310,11 +310,7 @@ export default function MapScene({
               "icon-image": iconsLoaded.current.follower
                 ? "planeFollower"
                 : "planeLeader",
-<<<<<<< HEAD
               "icon-size": 0.05, // Smaller size
-=======
-              "icon-size": 0.04,
->>>>>>> refs/remotes/origin/heatmap_setup
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
@@ -334,13 +330,8 @@ export default function MapScene({
             type: "circle",
             source: "follower-plane",
             paint: {
-<<<<<<< HEAD
               "circle-radius": 20, // Increased from 10
               "circle-color": "#ffffff", // White
-=======
-              "circle-radius": 12,
-              "circle-color": COLORS.routeB,
->>>>>>> refs/remotes/origin/heatmap_setup
               "circle-stroke-width": 3,
               "circle-stroke-color": "#000000", // Black stroke for contrast
               "circle-opacity": 1.0,
@@ -359,11 +350,7 @@ export default function MapScene({
             source: "leader-plane",
             layout: {
               "icon-image": "planeLeader",
-<<<<<<< HEAD
               "icon-size": 0.05, // Smaller size
-=======
-              "icon-size": 0.05,
->>>>>>> refs/remotes/origin/heatmap_setup
               "icon-rotate": ["coalesce", ["get", "bearing"], 0], // Default to 0 if bearing is null
               "icon-rotation-alignment": "map",
               "icon-allow-overlap": true,
@@ -379,13 +366,8 @@ export default function MapScene({
             type: "circle",
             source: "leader-plane",
             paint: {
-<<<<<<< HEAD
               "circle-radius": 22, // Increased from 10
               "circle-color": "#ffffff", // White
-=======
-              "circle-radius": 12,
-              "circle-color": COLORS.routeA,
->>>>>>> refs/remotes/origin/heatmap_setup
               "circle-stroke-width": 3,
               "circle-stroke-color": "#000000", // Black stroke for contrast
             },
