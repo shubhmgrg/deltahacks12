@@ -118,10 +118,34 @@ export default function Sidebar({
   const loadAllHeatmapData = async () => {
     setHeatmapLoading(true);
     try {
-      const data = await getHeatmapData(null, false);
-      if (data && data.data) {
-        setAllHeatmapData(data.data);
+      console.log('🔍 Loading heatmap data progressively...');
+
+      // Load data for each time bucket progressively
+      const loadedData = [];
+      let loadedCount = 0;
+
+      for (const bucket of timeBuckets) {
+        try {
+          const data = await getHeatmapData(bucket, false);
+          if (data && data.data && data.data.length > 0) {
+            loadedData.push(...data.data);
+            loadedCount++;
+
+            // Update display progressively after each bucket loads
+            setAllHeatmapData([...loadedData]);
+            console.log(`✅ Loaded bucket ${loadedCount}/${timeBuckets.length}: ${bucket} (${data.data.length} cells)`);
+
+            // If this is the first bucket, trigger immediate display
+            if (loadedCount === 1 && onHeatmapDataChange) {
+              updateInterpolatedDataWithData(loadedData);
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to load bucket ${bucket}:`, error);
+        }
       }
+
+      console.log('✅ All heatmap data loaded, total cells:', loadedData.length);
     } catch (error) {
       console.error('Failed to load heatmap data:', error);
     } finally {
@@ -129,19 +153,37 @@ export default function Sidebar({
     }
   };
 
+  const updateInterpolatedDataWithData = (data) => {
+    if (!data || data.length === 0 || timeBuckets.length === 0 || !onHeatmapDataChange) return;
+
+    const currentBucket = timeBuckets[currentTimeIndex];
+    const currentBucketCells = data.filter(cell => cell.time_bucket === currentBucket);
+
+    if (currentBucketCells.length > 0) {
+      console.log(`🔄 Progressive update: showing ${currentBucketCells.length} cells for bucket ${currentBucket}`);
+      onHeatmapDataChange(currentBucketCells);
+    }
+  };
+
   const updateInterpolatedData = () => {
     if (!allHeatmapData || timeBuckets.length === 0 || !onHeatmapDataChange) return;
+
+    console.log('🔄 Updating interpolated heatmap data, time index:', currentTimeIndex);
 
     const currentBucket = timeBuckets[currentTimeIndex];
     const nextIndex = (currentTimeIndex + 1) % timeBuckets.length;
     const nextBucket = timeBuckets[nextIndex];
     const progress = interpolationProgress;
 
+    console.log('📅 Current bucket:', currentBucket, '| Next bucket:', nextBucket, '| Progress:', progress);
+
     const currentMap = new Map();
     const nextMap = new Map();
 
     allHeatmapData.forEach((cell) => {
-      const key = `${cell.lat},${cell.lon}`;
+      const lat = cell.lat || cell.cell_lat;
+      const lon = cell.lon || cell.cell_lon;
+      const key = `${lat},${lon}`;
       if (cell.time_bucket === currentBucket) {
         currentMap.set(key, cell);
       }
@@ -149,6 +191,8 @@ export default function Sidebar({
         nextMap.set(key, cell);
       }
     });
+
+    console.log('📊 Current bucket cells:', currentMap.size, '| Next bucket cells:', nextMap.size);
 
     const interpolatedCells = [];
     const allKeys = new Set([...currentMap.keys(), ...nextMap.keys()]);
@@ -160,11 +204,11 @@ export default function Sidebar({
       if (currentCell || nextCell) {
         const currentIntensity = currentCell?.intensity || currentCell?.flight_count || 0;
         const nextIntensity = nextCell?.intensity || nextCell?.flight_count || 0;
-        
+
         const easeProgress = progress < 0.5
           ? 2 * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-        
+
         const interpolatedIntensity = currentIntensity + (nextIntensity - currentIntensity) * easeProgress;
 
         const baseCell = currentCell || nextCell;
@@ -175,6 +219,11 @@ export default function Sidebar({
         });
       }
     });
+
+    console.log('✅ Interpolated', interpolatedCells.length, 'heatmap cells');
+    if (interpolatedCells.length > 0) {
+      console.log('📝 First interpolated cell:', interpolatedCells[0]);
+    }
 
     onHeatmapDataChange(interpolatedCells);
     if (onHeatmapTimeBucketChange) {
@@ -195,7 +244,7 @@ export default function Sidebar({
     } else {
       isPlayingRef.current = true;
       setIsPlaying(true);
-      
+
       let bucketStartTime = Date.now();
       const duration = 1000;
 
@@ -409,7 +458,7 @@ export default function Sidebar({
                         value={[filters.maxDetour]}
                         onValueChange={([v]) => handleFilterChange('maxDetour', v)}
                         min={0}
-                        max={100}
+                        max={1000}
                         step={5}
                         className="py-1"
                         rangeClassName="bg-yellow-500"
@@ -595,7 +644,7 @@ export default function Sidebar({
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
                     <div className={`text-xl font-bold font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                      {formatNumber(selectedScenario.metrics.fuelSavedKg)}
+                      {formatNumber(selectedScenario?.metrics?.fuelSaved || 0)}
                     </div>
                     <div className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                       <Fuel className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
@@ -604,7 +653,7 @@ export default function Sidebar({
                   </div>
                   <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
                     <div className={`text-xl font-bold font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                      {formatCO2(selectedScenario.metrics.co2SavedKg)}
+                      {formatCO2(selectedScenario?.metrics?.co2Saved || 0)}
                     </div>
                     <div className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                       <Leaf className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
@@ -622,7 +671,7 @@ export default function Sidebar({
                   </div>
                   <div className={`rounded-lg p-3 border ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
                     <div className={`text-xl font-bold font-mono ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                      {formatDistance(selectedScenario.metrics.formationDistanceKm)}
+                      {formatDistance(selectedScenario?.metrics?.detourKm || 0)}
                     </div>
                     <div className={`text-[10px] uppercase tracking-wider flex items-center gap-1 mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                       <Route className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />

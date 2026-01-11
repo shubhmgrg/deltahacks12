@@ -9,6 +9,9 @@ export function cn(...inputs) {
  * Format number with commas
  */
 export function formatNumber(num, decimals = 0) {
+  if (num === undefined || num === null || isNaN(num)) {
+    return '0';
+  }
   return num.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -19,6 +22,9 @@ export function formatNumber(num, decimals = 0) {
  * Format CO2 value (kg or tonnes)
  */
 export function formatCO2(kg) {
+  if (kg === undefined || kg === null || isNaN(kg)) {
+    return '0 kg';
+  }
   if (kg >= 1000) {
     return `${(kg / 1000).toFixed(2)} t`;
   }
@@ -29,6 +35,9 @@ export function formatCO2(kg) {
  * Format distance (km or m)
  */
 export function formatDistance(km) {
+  if (km === undefined || km === null || isNaN(km)) {
+    return '0 km';
+  }
   if (km < 1) {
     return `${Math.round(km * 1000)} m`;
   }
@@ -39,6 +48,9 @@ export function formatDistance(km) {
  * Format duration in minutes
  */
 export function formatDuration(minutes) {
+  if (minutes === undefined || minutes === null || isNaN(minutes)) {
+    return '0 min';
+  }
   if (minutes < 60) {
     return `${Math.round(minutes)} min`;
   }

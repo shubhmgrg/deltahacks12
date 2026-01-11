@@ -15,6 +15,7 @@ import matchesData from "../data/matches.json";
 // API imports for backend-ready setup
 import {
   getMatches,
+  getFormationPairs, // Added import
   getScenario,
   getConnectionStatus,
   subscribeToStatus,
@@ -36,11 +37,28 @@ export default function ExistingApp() {
   const [theme, setTheme] = useState("light"); // 'light' | 'dark'
 
   // Data state - support both API and local fallback
-  const [scenarios] = useState(scenariosData);
+  const [scenarios, setScenarios] = useState([]);
   const [matches, setMatches] = useState(matchesData);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [selectedScenario, setSelectedScenario] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Load scenarios from JSON file
+  useEffect(() => {
+    const loadScenarios = async () => {
+      try {
+        const response = await fetch('/src/data/scenarios.json');
+        const data = await response.json();
+        setScenarios(data);
+        console.log('Loaded scenarios from file:', data.length);
+      } catch (error) {
+        console.error('Failed to load scenarios:', error);
+        // Fallback to imported data
+        setScenarios(scenariosData);
+      }
+    };
+    loadScenarios();
+  }, []);
 
   // Map mode state
   const [mapMode, setMapMode] = useState("3d"); // '3d' | '2d'
@@ -59,7 +77,7 @@ export default function ExistingApp() {
     timeOverlap: 30,
     headingTolerance: 15,
     minFormationDuration: 60,
-    maxDetour: 50,
+    maxDetour: 500,
     behindKm: 1.5,
     sideKm: 0.3,
   });
@@ -95,6 +113,13 @@ export default function ExistingApp() {
 
   // Replay controller ref
   const replayController = useRef(null);
+  const isInitialMount = useRef(true);
+  const previousFilters = useRef({
+    timeOverlap: 30,
+    headingTolerance: 15,
+    minFormationDuration: 60,
+    maxDetour: 500,
+  });
 
   // Handle match selection
   const handleSelectMatch = useCallback(
@@ -295,12 +320,95 @@ export default function ExistingApp() {
     }
   }, [matches, selectedMatch, handleSelectMatch]);
 
+  // Live Backend Integration with proper debouncing
+  useEffect(() => {
+    // Check if filters have actually changed
+    const hasChanged = 
+      previousFilters.current.timeOverlap !== filters.timeOverlap ||
+      previousFilters.current.headingTolerance !== filters.headingTolerance ||
+      previousFilters.current.minFormationDuration !== filters.minFormationDuration ||
+      previousFilters.current.maxDetour !== filters.maxDetour;
+
+    // Skip initial mount to prevent automatic fetch
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      previousFilters.current = {
+        timeOverlap: filters.timeOverlap,
+        headingTolerance: filters.headingTolerance,
+        minFormationDuration: filters.minFormationDuration,
+        maxDetour: filters.maxDetour,
+      };
+      console.log('Skipping initial fetch - waiting for user filter changes');
+      return;
+    }
+
+    // Skip if no actual change
+    if (!hasChanged) {
+      console.log('Filters unchanged, skipping fetch');
+      return;
+    }
+
+    // Update previous filters
+    previousFilters.current = {
+      timeOverlap: filters.timeOverlap,
+      headingTolerance: filters.headingTolerance,
+      minFormationDuration: filters.minFormationDuration,
+      maxDetour: filters.maxDetour,
+    };
+
+    const fetchLivePairs = async () => {
+      setLoading(true);
+      try {
+        console.log("Fetching formation pairs...", filters);
+        const data = await getFormationPairs(filters);
+
+        if (data && data.pairs) {
+          const transformed = data.pairs.map((p, idx) => ({
+            scenarioId: `pair_${p.flight1_id}_${p.flight2_id}`,
+            rank: idx + 1,
+            flightA: p.flight1_label || p.flight1_id,
+            flightB: p.flight2_label || p.flight2_id,
+            routeA: `Route ${p.flight1_label || p.flight1_id}`,
+            formationMinutes: Math.round(parseFloat(p.overlap_duration_min || 0)),
+            co2SavedKg: Math.round(parseFloat(p.overlap_duration_min || 0) * 12),
+            fuelSavedKg: Math.round(parseFloat(p.overlap_duration_min || 0) * 3.8),
+            detourKm: parseFloat(p.detour_km || 0),
+            score: 95 - (parseFloat(p.detour_km || 0) * 0.1),
+            // Preserve raw data
+            ...p
+          }));
+
+          setMatches(transformed);
+          
+          // Reload scenarios from file after backend updates it
+          setTimeout(async () => {
+            try {
+              const response = await fetch('/src/data/scenarios.json?t=' + Date.now());
+              const scenariosData = await response.json();
+              setScenarios(scenariosData);
+              console.log('Reloaded scenarios after fetch:', scenariosData.length);
+            } catch (error) {
+              console.error('Failed to reload scenarios:', error);
+            }
+          }, 500);
+        }
+      } catch (err) {
+        console.error("Failed to fetch pairs:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Debounce: only fetch after 1 second of no filter changes
+    const t = setTimeout(fetchLivePairs, 1000);
+    return () => clearTimeout(t);
+  }, [filters.timeOverlap, filters.headingTolerance, filters.minFormationDuration, filters.maxDetour, filters]);
+
   if (!appReady) {
     return (
       <div
-        className={`fixed inset-0 z-[100] flex items-center justify-center text-slate-900 transition-opacity duration-300 ${
-          fadeOut ? "opacity-0" : "opacity-100"
-        }`}
+        className={`fixed inset-0 z-[100] flex items-center justify-center text-slate-900 transition-opacity duration-300 ${fadeOut ? "opacity-0" : "opacity-100"
+          }`}
         style={{
           backgroundColor: theme === "dark" ? "#020617" : "#f8fafc",
           color: theme === "dark" ? "#f8fafc" : "#0f172a",
@@ -327,11 +435,10 @@ export default function ExistingApp() {
 
   return (
     <div
-      className={`h-screen flex flex-col overflow-hidden font-sans ${
-        theme === "dark"
-          ? "bg-slate-950 text-slate-100"
-          : "bg-slate-50 text-slate-900"
-      }`}
+      className={`h-screen flex flex-col overflow-hidden font-sans ${theme === "dark"
+        ? "bg-slate-950 text-slate-100"
+        : "bg-slate-50 text-slate-900"
+        }`}
     >
       {/* Top Bar */}
       <TopBar
@@ -427,7 +534,7 @@ export default function ExistingApp() {
           )}
         </main>
       </div>
-      
+
       {/* AI Agent Chat Window */}
       <AgentChat />
     </div>

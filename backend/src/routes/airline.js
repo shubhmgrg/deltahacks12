@@ -2,448 +2,548 @@ import express from "express";
 import { connectDB, getCollection } from "../datastore.js";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Helper function to calculate angle between two flight paths
-function calculateAngleBetweenPaths(flight1, flight2) {
-  // Extract coordinates from the point format (lat,lon)
-  const parseCoordinates = (coordStr) => {
-    const match = coordStr.match(/\(([^,]+),([^)]+)\)/);
-    if (!match) return null;
-    return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
-  };
-
-  const dep1 = parseCoordinates(flight1.dep_coords);
-  const arr1 = parseCoordinates(flight1.arr_coords);
-  const dep2 = parseCoordinates(flight2.dep_coords);
-  const arr2 = parseCoordinates(flight2.arr_coords);
-
-  if (!dep1 || !arr1 || !dep2 || !arr2) return null;
-
-  // Calculate direction vectors (in degrees)
-  const vector1 = {
-    lat: arr1.lat - dep1.lat,
-    lon: arr1.lon - dep1.lon
-  };
-  
-  const vector2 = {
-    lat: arr2.lat - dep2.lat,
-    lon: arr2.lon - dep2.lon
-  };
-
-  // Calculate dot product and magnitudes
-  const dotProduct = vector1.lat * vector2.lat + vector1.lon * vector2.lon;
-  const magnitude1 = Math.sqrt(vector1.lat ** 2 + vector1.lon ** 2);
-  const magnitude2 = Math.sqrt(vector2.lat ** 2 + vector2.lon ** 2);
-
-  if (magnitude1 === 0 || magnitude2 === 0) return null;
-
-  // Check if vectors are pointing in the same direction (dot product must be positive)
-  if (dotProduct < 0) return null;
-
-  // Calculate angle in radians then convert to degrees
-  const cosAngle = dotProduct / (magnitude1 * magnitude2);
-  const angleRad = Math.acos(Math.max(-1, Math.min(1, cosAngle)));
-  const angleDeg = angleRad * (180 / Math.PI);
-
-  return angleDeg;
-}
-
-// Helper function to check if times are within 3 hours (ignoring date)
-function withinThreeHours(time1, time2) {
-  const date1 = new Date(time1);
-  const date2 = new Date(time2);
-  
-  // Extract time in minutes from midnight
-  const minutes1 = date1.getUTCHours() * 60 + date1.getUTCMinutes();
-  const minutes2 = date2.getUTCHours() * 60 + date2.getUTCMinutes();
-  
-  // Calculate difference (handle wrap-around at midnight)
-  let diffMinutes = Math.abs(minutes1 - minutes2);
-  
-  // Check both forward and backward across midnight
-  diffMinutes = Math.min(diffMinutes, 1440 - diffMinutes);
-  
-  const diffHours = diffMinutes / 60;
-  return diffHours <= 3;
-}
-
-// Helper function to calculate distance between two coordinates (Haversine formula)
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+// Helper: Haversine distance in km
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth radius in km
+  const toRad = (deg) => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-// Helper function to find intersection of two line segments
-function findLineIntersection(p1, p2, p3, p4) {
-  // p1-p2 is first line segment, p3-p4 is second line segment
-  const x1 = p1.lon, y1 = p1.lat;
-  const x2 = p2.lon, y2 = p2.lat;
-  const x3 = p3.lon, y3 = p3.lat;
-  const x4 = p4.lon, y4 = p4.lat;
-
-  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-  
-  if (Math.abs(denom) < 1e-10) {
-    return null; // Lines are parallel or coincident
+// Helper: Calculate path length
+function pathLength(coords) {
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    total += haversineDistance(
+      coords[i-1][1], coords[i-1][0],
+      coords[i][1], coords[i][0]
+    );
   }
-
-  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-  const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
-
-  // Check if intersection is within both line segments
-  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-    return {
-      lat: y1 + t * (y2 - y1),
-      lon: x1 + t * (x2 - x1),
-      t1: t, // proportion along first line (0 to 1)
-      t2: u  // proportion along second line (0 to 1)
-    };
-  }
-
-  return null;
+  return total;
 }
 
-// Helper function to calculate time at intersection point
-function calculateTimeAtIntersection(departureTime, arrivalTime, proportionAlongPath) {
-  const depTime = new Date(departureTime).getTime();
-  const arrTime = new Date(arrivalTime).getTime();
-  const flightDuration = arrTime - depTime;
+// Helper: Find closest point on path to a given point
+function closestPointOnPath(targetLat, targetLon, pathCoords) {
+  let minDist = Infinity;
+  let bestIdx = 0;
+  let bestFraction = 0;
   
-  const timeAtIntersection = depTime + (flightDuration * proportionAlongPath);
-  return new Date(timeAtIntersection);
+  for (let i = 0; i < pathCoords.length - 1; i++) {
+    const [lon1, lat1] = pathCoords[i];
+    const [lon2, lat2] = pathCoords[i + 1];
+    
+    // Check both segment endpoints and midpoint
+    const points = [
+      { lat: lat1, lon: lon1, idx: i, frac: 0 },
+      { lat: lat2, lon: lon2, idx: i, frac: 1 },
+      { lat: (lat1 + lat2) / 2, lon: (lon1 + lon2) / 2, idx: i, frac: 0.5 }
+    ];
+    
+    for (const pt of points) {
+      const dist = haversineDistance(targetLat, targetLon, pt.lat, pt.lon);
+      if (dist < minDist) {
+        minDist = dist;
+        bestIdx = pt.idx;
+        bestFraction = pt.frac;
+      }
+    }
+  }
+  
+  return { segmentIdx: bestIdx, fraction: bestFraction, distance: minDist };
 }
 
-// Helper function to check if two times are within specified hours
-function withinHours(time1, time2, hours) {
-  const diff = Math.abs(new Date(time1).getTime() - new Date(time2).getTime());
-  return diff <= hours * 60 * 60 * 1000;
+// Helper: Calculate formation overlap and detour
+// Formation occurs when both planes are within half the detour distance from the middle line
+function calculateFormationMetrics(flight1Coords, flight1Times, flight2Coords, flight2Times, maxDetourKm) {
+  if (flight1Coords.length < 2 || flight2Coords.length < 2) {
+    return null;
+  }
+  
+  const halfDetour = maxDetourKm / 2;
+  const formationSegments = [];
+  let inFormation = false;
+  let formationStart1 = -1;
+  let formationStart2 = -1;
+  
+  // For each point on flight1, find the closest point on flight2 and check formation condition
+  for (let i = 0; i < flight1Coords.length; i++) {
+    const [lon1, lat1] = flight1Coords[i];
+    const closest = closestPointOnPath(lat1, lon1, flight2Coords);
+    
+    // Get the closest point coordinates on flight2
+    const segIdx = closest.segmentIdx;
+    const frac = closest.fraction;
+    const [lon2a, lat2a] = flight2Coords[segIdx];
+    const [lon2b, lat2b] = flight2Coords[Math.min(segIdx + 1, flight2Coords.length - 1)];
+    
+    // Interpolate to get the exact closest point
+    const lon2 = lon2a + (lon2b - lon2a) * frac;
+    const lat2 = lat2a + (lat2b - lat2a) * frac;
+    
+    // Calculate middle point between the two positions
+    const midLon = (lon1 + lon2) / 2;
+    const midLat = (lat1 + lat2) / 2;
+    
+    // Calculate distance from each plane to the middle point
+    const dist1ToMid = haversineDistance(lat1, lon1, midLat, midLon);
+    const dist2ToMid = haversineDistance(lat2, lon2, midLat, midLon);
+    
+    // Formation occurs when both planes are within half the detour distance from the middle line
+    const bothWithinThreshold = (dist1ToMid <= halfDetour) && (dist2ToMid <= halfDetour);
+    
+    if (bothWithinThreshold) {
+      if (!inFormation) {
+        // Start of formation segment
+        inFormation = true;
+        formationStart1 = i;
+        formationStart2 = segIdx;
+      }
+    } else {
+      if (inFormation) {
+        // End of formation segment
+        formationSegments.push({
+          start1: formationStart1,
+          end1: i - 1,
+          start2: formationStart2,
+          end2: segIdx
+        });
+        inFormation = false;
+      }
+    }
+  }
+  
+  // Handle case where formation extends to end
+  if (inFormation) {
+    formationSegments.push({
+      start1: formationStart1,
+      end1: flight1Coords.length - 1,
+      start2: formationStart2,
+      end2: flight2Coords.length - 1
+    });
+  }
+  
+  if (formationSegments.length === 0) {
+    return null;
+  }
+  
+  // Use the longest formation segment
+  let longestSegment = formationSegments[0];
+  let maxDuration = 0;
+  
+  for (const seg of formationSegments) {
+    const duration = flight1Times[seg.end1] - flight1Times[seg.start1];
+    if (duration > maxDuration) {
+      maxDuration = duration;
+      longestSegment = seg;
+    }
+  }
+  
+  // Calculate metrics for longest segment
+  const formationCoords1 = flight1Coords.slice(longestSegment.start1, longestSegment.end1 + 1);
+  const formationCoords2 = flight2Coords.slice(longestSegment.start2, longestSegment.end2 + 1);
+  
+  const formationDist1 = pathLength(formationCoords1);
+  const formationDist2 = pathLength(formationCoords2);
+  const avgFormationDist = (formationDist1 + formationDist2) / 2;
+  
+  // Calculate direct distance between start and end of formation (using midpoint line)
+  const startMidLon = (formationCoords1[0][0] + formationCoords2[0][0]) / 2;
+  const startMidLat = (formationCoords1[0][1] + formationCoords2[0][1]) / 2;
+  const endMidLon = (formationCoords1[formationCoords1.length - 1][0] + formationCoords2[formationCoords2.length - 1][0]) / 2;
+  const endMidLat = (formationCoords1[formationCoords1.length - 1][1] + formationCoords2[formationCoords2.length - 1][1]) / 2;
+  
+  const directDist = haversineDistance(startMidLat, startMidLon, endMidLat, endMidLon);
+  
+  const detourKm = avgFormationDist - directDist;
+  const detourPercent = directDist > 0 ? (detourKm / directDist) * 100 : 0;
+  
+  // Calculate duration in minutes
+  const durationMs = flight1Times[longestSegment.end1] - flight1Times[longestSegment.start1];
+  const durationMinutes = durationMs / 60000;
+  
+  return {
+    detourKm,
+    detourPercent,
+    durationMinutes,
+    formationDistKm: avgFormationDist,
+    segment: longestSegment
+  };
 }
 
-router.get("/similar-flight-pairs", async (req, res) => {
+
+router.get("/formation-pairs", async (req, res) => {
   try {
-    console.log("Received request for similar flight pairs");
-    
-    await connectDB();
-    const flightsCol = getCollection("flights");
-    const airportsCol = getCollection("airports");
-    
-    // Get flights with different departure and arrival airports
-    const flights = await flightsCol
-      .find({ 
-        $expr: { $ne: ["$departure_airport", "$arrival_airport"] }
-      })
-      .limit(1000)
-      .toArray();
-    
-    // Get airport coordinates
-    const airports = await airportsCol.find({}).toArray();
-    const airportMap = new Map(airports.map(a => [a.code || a.airport_code, a]));
-    
-    // Filter results based on angle and time constraints
-    const matchingPairs = [];
+    const tolerance = parseFloat(req.query.tolerance) || 1500;
+    const maxTimeApart = parseFloat(req.query.maxTimeApart) || 36000;
+    const maxDetourKm = parseFloat(req.query.maxDetour) || 50; // km
+    const minDurationMin = parseFloat(req.query.minDuration) || 30; // minutes
+    const limit = parseInt(req.query.limit) || 100;
 
-    // Compare all flight pairs
-    for (let i = 0; i < flights.length; i++) {
-      const f1 = flights[i];
-      const dep1 = airportMap.get(f1.departure_airport);
-      const arr1 = airportMap.get(f1.arrival_airport);
-      
-      if (!dep1 || !arr1) continue;
-      
-      for (let j = i + 1; j < flights.length; j++) {
-        const f2 = flights[j];
-        const dep2 = airportMap.get(f2.departure_airport);
-        const arr2 = airportMap.get(f2.arrival_airport);
+    await connectDB();
+    const airlinesCol = getCollection("airlines");
+    const nodesCol = getCollection("flight_nodes");
+
+    // Filter by Angle and Time
+    // Note: angle_diff and time_gap_minutes are stored as strings in DB (from .toFixed(2))
+    // We need to convert them to numbers for comparison using $expr
+    const query = {
+      $expr: {
+        $and: [
+          { $lte: [{ $toDouble: "$angle_diff" }, tolerance] },
+          { $lte: [{ $toDouble: "$time_gap_minutes" }, maxTimeApart] }
+        ]
+      }
+    };
+
+    // Log the actual query being sent to MongoDB
+    console.log("DB Query:", JSON.stringify(query, null, 2));
+
+    // Fetch initial filtered pairs (more than limit to allow for further filtering)
+    const initialPairs = await airlinesCol.find(query).limit(limit * 3).toArray();
+
+    console.log(`Found ${initialPairs.length} pairs matching angle/time criteria.`);
+    console.log(`Now calculating detour and duration for detailed filtering...`);
+
+    // Process each pair to calculate detour and duration
+    const enrichedPairs = [];
+    let processed = 0;
+    
+    for (const pair of initialPairs) {
+      try {
+        // Fetch flight tailnums (labels)
+        const flight1Info = await nodesCol.findOne({ flight_id: pair.flight1_id }, { projection: { tailnum: 1, _id: 0 } });
+        const flight2Info = await nodesCol.findOne({ flight_id: pair.flight2_id }, { projection: { tailnum: 1, _id: 0 } });
         
-        if (!dep2 || !arr2) continue;
+        const flight1Label = flight1Info?.tailnum || pair.flight1_id;
+        const flight2Label = flight2Info?.tailnum || pair.flight2_id;
         
-        // Check if they share departure or arrival airport
-        const sameDeparture = f1.departure_airport === f2.departure_airport;
-        const sameArrival = f1.arrival_airport === f2.arrival_airport;
+        // Fetch flight paths from nodes
+        const nodes1 = await nodesCol.find({ flight_id: pair.flight1_id })
+          .sort({ timestamp: 1 })
+          .project({ lat: 1, lon: 1, timestamp: 1, _id: 0 })
+          .toArray();
+          
+        const nodes2 = await nodesCol.find({ flight_id: pair.flight2_id })
+          .sort({ timestamp: 1 })
+          .project({ lat: 1, lon: 1, timestamp: 1, _id: 0 })
+          .toArray();
+
+        if (nodes1.length < 2 || nodes2.length < 2) continue;
+
+        // Convert to coords and times arrays
+        const coords1 = nodes1.map(n => [n.lon, n.lat]);
+        const times1 = nodes1.map(n => new Date(n.timestamp).getTime());
+        const coords2 = nodes2.map(n => [n.lon, n.lat]);
+        const times2 = nodes2.map(n => new Date(n.timestamp).getTime());
+
+        // Calculate formation metrics
+        const metrics = calculateFormationMetrics(coords1, times1, coords2, times2, maxDetourKm);
+
+        if (!metrics) continue;
+
+        // Apply detour and duration filters
+        if (metrics.detourKm > maxDetourKm) continue;
+        if (metrics.durationMinutes < minDurationMin) continue;
+
+        // Randomly choose leader (0 = flight1, 1 = flight2)
+        const isLeader1 = Math.random() < 0.5;
         
-        if (!sameDeparture && !sameArrival) continue;
-        if (sameDeparture && sameArrival) continue;
+        // Get coordinates and times for leader and follower
+        const leaderCoords = isLeader1 ? coords1 : coords2;
+        const leaderTimes = isLeader1 ? times1 : times2;
+        const leaderNodes = isLeader1 ? nodes1 : nodes2;
+        const leaderLabel = isLeader1 ? flight1Label : flight2Label;
+        const leaderSegmentStart = isLeader1 ? metrics.segment.start1 : metrics.segment.start2;
+        const leaderSegmentEnd = isLeader1 ? metrics.segment.end1 : metrics.segment.end2;
         
-        // Get coordinates (support both formats)
-        const getCoords = (airport) => {
-          if (airport.coordinates) {
-            // Format: "(lat,lon)"
-            const match = airport.coordinates.match(/\(([^,]+),([^)]+)\)/);
-            if (match) return `(${match[1]},${match[2]})`;
+        const followerCoords = isLeader1 ? coords2 : coords1;
+        const followerTimes = isLeader1 ? times2 : times1;
+        const followerNodes = isLeader1 ? nodes2 : nodes1;
+        const followerLabel = isLeader1 ? flight2Label : flight1Label;
+        const followerSegmentStart = isLeader1 ? metrics.segment.start2 : metrics.segment.start1;
+        const followerSegmentEnd = isLeader1 ? metrics.segment.end2 : metrics.segment.end1;
+
+        // Create 4 key points for leader: [start, join, split, end]
+        const leaderPoints = [
+          {
+            lat: leaderCoords[0][1],
+            lon: leaderCoords[0][0],
+            time: new Date(leaderTimes[0]).toISOString()
+          },
+          {
+            lat: leaderCoords[leaderSegmentStart][1],
+            lon: leaderCoords[leaderSegmentStart][0],
+            time: new Date(leaderTimes[leaderSegmentStart]).toISOString()
+          },
+          {
+            lat: leaderCoords[leaderSegmentEnd][1],
+            lon: leaderCoords[leaderSegmentEnd][0],
+            time: new Date(leaderTimes[leaderSegmentEnd]).toISOString()
+          },
+          {
+            lat: leaderCoords[leaderCoords.length - 1][1],
+            lon: leaderCoords[leaderCoords.length - 1][0],
+            time: new Date(leaderTimes[leaderTimes.length - 1]).toISOString()
           }
-          if (airport.latitude && airport.longitude) {
-            return `(${airport.latitude},${airport.longitude})`;
+        ];
+
+        // Create 4 key points for follower: [start, join, split, end]
+        const followerPoints = [
+          {
+            lat: followerCoords[0][1],
+            lon: followerCoords[0][0],
+            time: new Date(followerTimes[0]).toISOString()
+          },
+          {
+            lat: followerCoords[followerSegmentStart][1],
+            lon: followerCoords[followerSegmentStart][0],
+            time: new Date(followerTimes[followerSegmentStart]).toISOString()
+          },
+          {
+            lat: followerCoords[followerSegmentEnd][1],
+            lon: followerCoords[followerSegmentEnd][0],
+            time: new Date(followerTimes[followerSegmentEnd]).toISOString()
+          },
+          {
+            lat: followerCoords[followerCoords.length - 1][1],
+            lon: followerCoords[followerCoords.length - 1][0],
+            time: new Date(followerTimes[followerTimes.length - 1]).toISOString()
           }
-          if (airport.lat && airport.lon) {
-            return `(${airport.lat},${airport.lon})`;
-          }
-          return null;
+        ];
+
+        // Full tracked points for both flights
+        const leaderTracked = leaderNodes.map(n => ({
+          lat: n.lat,
+          lon: n.lon,
+          time: n.timestamp
+        }));
+
+        const followerTracked = followerNodes.map(n => ({
+          lat: n.lat,
+          lon: n.lon,
+          time: n.timestamp
+        }));
+
+        // Get joining and splitting points (based on leader)
+        const joiningPoint = {
+          lat: leaderCoords[leaderSegmentStart][1],
+          lon: leaderCoords[leaderSegmentStart][0],
+          timestamp: new Date(leaderTimes[leaderSegmentStart])
         };
         
-        const dep1Coords = getCoords(dep1);
-        const arr1Coords = getCoords(arr1);
-        const dep2Coords = getCoords(dep2);
-        const arr2Coords = getCoords(arr2);
+        const splittingPoint = {
+          lat: leaderCoords[leaderSegmentEnd][1],
+          lon: leaderCoords[leaderSegmentEnd][0],
+          timestamp: new Date(leaderTimes[leaderSegmentEnd])
+        };
+
+        // Get start and end points for each original flight
+        const flight1Start = {
+          lat: coords1[0][1],
+          lon: coords1[0][0],
+          timestamp: new Date(times1[0])
+        };
         
-        if (!dep1Coords || !arr1Coords || !dep2Coords || !arr2Coords) continue;
+        const flight1End = {
+          lat: coords1[coords1.length - 1][1],
+          lon: coords1[coords1.length - 1][0],
+          timestamp: new Date(times1[times1.length - 1])
+        };
         
-        const angle = calculateAngleBetweenPaths(
-          { dep_coords: dep1Coords, arr_coords: arr1Coords },
-          { dep_coords: dep2Coords, arr_coords: arr2Coords }
-        );
+        const flight2Start = {
+          lat: coords2[0][1],
+          lon: coords2[0][0],
+          timestamp: new Date(times2[0])
+        };
+        
+        const flight2End = {
+          lat: coords2[coords2.length - 1][1],
+          lon: coords2[coords2.length - 1][0],
+          timestamp: new Date(times2[times2.length - 1])
+        };
 
-        if (angle === null || angle > 45) continue;
-
-        // Check time constraints
-        let timeValid = false;
-        if (sameDeparture && withinThreeHours(f1.scheduled_departure, f2.scheduled_departure)) {
-          timeValid = true;
-        }
-        if (sameArrival && withinThreeHours(f1.scheduled_arrival, f2.scheduled_arrival)) {
-          timeValid = true;
-        }
-
-        if (timeValid) {
-          matchingPairs.push({
-            flight1: {
-              id: f1._id?.toString() || f1.flight_id,
-              number: f1.flight_no,
-              departure_airport: f1.departure_airport,
-              arrival_airport: f1.arrival_airport,
-              scheduled_departure: f1.scheduled_departure,
-              scheduled_arrival: f1.scheduled_arrival
+        enrichedPairs.push({
+          ...pair,
+          flight1_label: flight1Label,
+          flight2_label: flight2Label,
+          detour_km: parseFloat(metrics.detourKm.toFixed(2)),
+          detour_percent: parseFloat(metrics.detourPercent.toFixed(2)),
+          overlap_duration_min: parseFloat(metrics.durationMinutes.toFixed(2)),
+          formation_distance_km: parseFloat(metrics.formationDistKm.toFixed(2)),
+          joining_point: joiningPoint,
+          splitting_point: splittingPoint,
+          flight1_start: flight1Start,
+          flight1_end: flight1End,
+          flight2_start: flight2Start,
+          flight2_end: flight2End,
+          // Add scenario data
+          scenario: {
+            id: `pair_${pair.flight1_id}_${pair.flight2_id}`,
+            leader: {
+              label: leaderLabel,
+              points: leaderPoints,
+              tracked: leaderTracked
             },
-            flight2: {
-              id: f2._id?.toString() || f2.flight_id,
-              number: f2.flight_no,
-              departure_airport: f2.departure_airport,
-              arrival_airport: f2.arrival_airport,
-              scheduled_departure: f2.scheduled_departure,
-              scheduled_arrival: f2.scheduled_arrival
+            follower: {
+              label: followerLabel,
+              points: followerPoints,
+              tracked: followerTracked
             },
-            angle_degrees: angle.toFixed(2),
-            same_departure: sameDeparture,
-            same_arrival: sameArrival
-          });
+            joinIndex: 1, // Index 1 is the joining point in the 4-point array
+            splitIndex: 2, // Index 2 is the splitting point in the 4-point array
+            formation: {
+              startTime: joiningPoint.timestamp,
+              endTime: splittingPoint.timestamp,
+              durationMinutes: parseFloat(metrics.durationMinutes.toFixed(2))
+            },
+            metrics: {
+              fuelSaved: Math.round(parseFloat(metrics.durationMinutes.toFixed(2)) * 3.8),
+              co2Saved: Math.round(parseFloat(metrics.durationMinutes.toFixed(2)) * 12),
+              detourKm: parseFloat(metrics.detourKm.toFixed(2))
+            }
+          }
+        });
+
+        processed++;
+        if (processed % 10 === 0) {
+          console.log(`Processed ${processed}/${initialPairs.length} pairs...`);
         }
+
+        // Stop once we have enough valid pairs
+        if (enrichedPairs.length >= limit) break;
+        
+      } catch (err) {
+        console.error(`Error processing pair ${pair.flight1_id}-${pair.flight2_id}:`, err.message);
+        continue;
+      }
+    }
+
+    console.log(`Final count: ${enrichedPairs.length} pairs after detour/duration filtering.`);
+
+    // Extract scenarios and write to frontend scenarios.json
+    const scenarios = enrichedPairs.map(p => p.scenario).filter(s => s);
+    
+    if (scenarios.length > 0) {
+      try {
+        const frontendScenariosPath = path.join(__dirname, '../../../frontend/src/data/scenarios.json');
+        fs.writeFileSync(frontendScenariosPath, JSON.stringify(scenarios, null, 2), 'utf-8');
+        console.log(`Wrote ${scenarios.length} scenarios to frontend/src/data/scenarios.json`);
+      } catch (err) {
+        console.error('Error writing frontend scenarios.json:', err);
       }
     }
 
     res.json({
-      total_pairs: matchingPairs.length,
-      pairs: matchingPairs
+      filter: { 
+        tolerance, 
+        maxTimeApart, 
+        maxDetourKm, 
+        minDurationMin 
+      },
+      count: enrichedPairs.length,
+      pairs: enrichedPairs
     });
+
   } catch (err) {
-    console.error("Database error:", err);
-    res.status(500).json({ error: "Database error" });
+    console.error("Error in GET /formation-pairs:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-router.get("/intersecting-flights", async (req, res) => {
+/**
+ * POST /prepare-paths
+ * Aggregates flight_nodes into flight_paths collection with LineString geometry.
+ * Creates 2dsphere index.
+ */
+router.post("/prepare-paths", async (req, res) => {
   try {
-    console.log("Received request for intersecting flight pairs");
-    
     await connectDB();
-    const flightsCol = getCollection("flights");
-    const airportsCol = getCollection("airports");
-    
-    // Get flights with different departure and arrival airports
-    const flights = await flightsCol
-      .find({ 
-        $expr: { $ne: ["$departure_airport", "$arrival_airport"] }
-      })
-      .limit(30000)
-      .toArray();
-    
-    // Get airport coordinates
-    const airports = await airportsCol.find({}).toArray();
-    const airportMap = new Map(airports.map(a => [a.code || a.airport_code, a]));
+    const nodesCol = getCollection("flight_nodes");
+    const pathsCol = getCollection("flight_paths");
 
-    const parseCoordinates = (coordStr) => {
-      const match = coordStr.match(/\(([^,]+),([^)]+)\)/);
-      if (!match) return null;
-      return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
-    };
-    
-    const getCoords = (airport) => {
-      if (airport.coordinates) {
-        const match = airport.coordinates.match(/\(([^,]+),([^)]+)\)/);
-        if (match) return `(${match[1]},${match[2]})`;
-      }
-      if (airport.latitude && airport.longitude) {
-        return `(${airport.latitude},${airport.longitude})`;
-      }
-      if (airport.lat && airport.lon) {
-        return `(${airport.lat},${airport.lon})`;
-      }
-      return null;
-    };
+    console.log("aggregating flight paths...");
+    // Clear existing paths to rebuild
+    await pathsCol.deleteMany({});
 
-    const intersectingPairs = [];
-
-    // Compare all flight pairs
-    for (let i = 0; i < flights.length; i++) {
-      const f1 = flights[i];
-      const dep1Airport = airportMap.get(f1.departure_airport);
-      const arr1Airport = airportMap.get(f1.arrival_airport);
-      
-      if (!dep1Airport || !arr1Airport) continue;
-      
-      // Skip if same departure and arrival
-      if (f1.departure_airport === f1.arrival_airport) continue;
-      
-      const dep1Coords = getCoords(dep1Airport);
-      const arr1Coords = getCoords(arr1Airport);
-      if (!dep1Coords || !arr1Coords) continue;
-      
-      const dep1 = parseCoordinates(dep1Coords);
-      const arr1 = parseCoordinates(arr1Coords);
-      if (!dep1 || !arr1) continue;
-      
-      for (let j = i + 1; j < flights.length; j++) {
-        const f2 = flights[j];
-        const dep2Airport = airportMap.get(f2.departure_airport);
-        const arr2Airport = airportMap.get(f2.arrival_airport);
-        
-        if (!dep2Airport || !arr2Airport) continue;
-        
-        // Skip if same departure and arrival
-        if (f2.departure_airport === f2.arrival_airport) continue;
-        
-        // Skip if flights share departure or arrival
-        if (f1.departure_airport === f2.departure_airport) continue;
-        if (f1.arrival_airport === f2.arrival_airport) continue;
-        
-        const dep2Coords = getCoords(dep2Airport);
-        const arr2Coords = getCoords(arr2Airport);
-        if (!dep2Coords || !arr2Coords) continue;
-        
-        const dep2 = parseCoordinates(dep2Coords);
-        const arr2 = parseCoordinates(arr2Coords);
-        if (!dep2 || !arr2) continue;
-
-        // Calculate angle between paths first
-        const angle = calculateAngleBetweenPaths(
-          { dep_coords: dep1Coords, arr_coords: arr1Coords },
-          { dep_coords: dep2Coords, arr_coords: arr2Coords }
-        );
-
-        if (angle === null || angle > 10) continue;
-
-        // Find intersection point
-        const intersection = findLineIntersection(dep1, arr1, dep2, arr2);
-
-        if (!intersection) continue;
-
-        // Calculate distances from intersection to departure and arrival points
-        const flight1DepDist = calculateDistance(dep1.lat, dep1.lon, intersection.lat, intersection.lon);
-        const flight1ArrDist = calculateDistance(intersection.lat, intersection.lon, arr1.lat, arr1.lon);
-        const flight2DepDist = calculateDistance(dep2.lat, dep2.lon, intersection.lat, intersection.lon);
-        const flight2ArrDist = calculateDistance(intersection.lat, intersection.lon, arr2.lat, arr2.lon);
-
-        // Calculate time each flight will be at intersection
-        const flight1TimeAtIntersection = calculateTimeAtIntersection(
-          f1.scheduled_departure,
-          f1.scheduled_arrival,
-          intersection.t1
-        );
-
-        const flight2TimeAtIntersection = calculateTimeAtIntersection(
-          f2.scheduled_departure,
-          f2.scheduled_arrival,
-          intersection.t2
-        );
-
-        // Check if flights are at intersection within 1 hour of each other
-        if (withinHours(flight1TimeAtIntersection, flight2TimeAtIntersection, 1)) {
-          const timeDiffMinutes = Math.abs(
-            new Date(flight1TimeAtIntersection).getTime() - 
-            new Date(flight2TimeAtIntersection).getTime()
-          ) / (1000 * 60);
-
-          console.log(`✓ Valid pair found: ${f1.flight_no} and ${f2.flight_no} - Time diff: ${timeDiffMinutes.toFixed(2)} min, Angle: ${angle.toFixed(2)}°`);
-
-          intersectingPairs.push({
-            flight1: {
-              id: f1._id?.toString() || f1.flight_id,
-              number: f1.flight_no,
-              departure_airport: f1.departure_airport,
-              arrival_airport: f1.arrival_airport,
-              scheduled_departure: f1.scheduled_departure,
-              scheduled_arrival: f1.scheduled_arrival,
-              time_at_intersection: flight1TimeAtIntersection.toISOString(),
-              distance_to_intersection_km: flight1DepDist.toFixed(2),
-              distance_from_intersection_km: flight1ArrDist.toFixed(2)
-            },
-            flight2: {
-              id: f2._id?.toString() || f2.flight_id,
-              number: f2.flight_no,
-              departure_airport: f2.departure_airport,
-              arrival_airport: f2.arrival_airport,
-              scheduled_departure: f2.scheduled_departure,
-              scheduled_arrival: f2.scheduled_arrival,
-              time_at_intersection: flight2TimeAtIntersection.toISOString(),
-              distance_to_intersection_km: flight2DepDist.toFixed(2),
-              distance_from_intersection_km: flight2ArrDist.toFixed(2)
-            },
-            intersection: {
-              latitude: intersection.lat.toFixed(6),
-              longitude: intersection.lon.toFixed(6)
-            },
-            angle_degrees: angle.toFixed(2),
-            time_difference_minutes: timeDiffMinutes.toFixed(2)
-          });
+    // Aggregate nodes to build paths
+    const cursor = nodesCol.aggregate([
+      // Sort by time
+      { $sort: { "flight_id": 1, "timestamp": 1 } },
+      // Group by flight
+      {
+        $group: {
+          _id: "$flight_id",
+          coordinates: { $push: "$location.coordinates" },
+          times: { $push: "$timestamp" },
+          // Capture start and end metadata
+          startParams: {
+            $first: {
+              lat: "$lat",
+              lon: "$lon",
+              timestamp: "$timestamp",
+              airport: "$origin"
+            }
+          },
+          endParams: {
+            $last: {
+              lat: "$lat",
+              lon: "$lon",
+              timestamp: "$timestamp",
+              airport: "$dest"
+            }
+          }
+        }
+      },
+      // Filter out single-point flights
+      {
+        $match: {
+          $expr: { $gt: [{ $size: "$coordinates" }, 1] }
         }
       }
+    ]);
+
+    let count = 0;
+    while (await cursor.hasNext()) {
+      const doc = await cursor.next();
+
+      // Construct GeoJSON LineString
+      // Note: MongoDB GeoJSON coordinates are [lon, lat]
+      const lineString = {
+        type: "LineString",
+        coordinates: doc.coordinates
+      };
+
+      await pathsCol.insertOne({
+        flight_id: doc._id,
+        geometry: lineString,
+        times: doc.times,
+        start: doc.startParams,
+        end: doc.endParams
+      });
+      count++;
+      if (count % 100 === 0) console.log(`Processed ${count} flights...`);
     }
 
-    // Write results to CSV file
-    const csvFilePath = path.join(process.cwd(), 'intersects.csv');
-    const csvHeader = 'Flight1_Number,Flight1_Departure,Flight1_Arrival,Flight1_Time_At_Intersection,Flight2_Number,Flight2_Departure,Flight2_Arrival,Flight2_Time_At_Intersection,Intersection_Lat,Intersection_Lon,Angle_Degrees,Time_Difference_Minutes\n';
-    
-    const csvRows = intersectingPairs.map(pair => {
-      return [
-        pair.flight1.number,
-        pair.flight1.departure_airport,
-        pair.flight1.arrival_airport,
-        pair.flight1.time_at_intersection,
-        pair.flight2.number,
-        pair.flight2.departure_airport,
-        pair.flight2.arrival_airport,
-        pair.flight2.time_at_intersection,
-        pair.intersection.latitude,
-        pair.intersection.longitude,
-        pair.angle_degrees,
-        pair.time_difference_minutes
-      ].join(',');
-    }).join('\n');
+    console.log(`Created ${count} flight paths. Creating index...`);
+    await pathsCol.createIndex({ geometry: "2dsphere" });
+    console.log("Index created.");
 
-    const csvContent = csvHeader + csvRows;
-    
-    try {
-      fs.writeFileSync(csvFilePath, csvContent, 'utf8');
-      console.log(`\n📊 Results saved to ${csvFilePath} (${intersectingPairs.length} pairs)`);
-    } catch (writeErr) {
-      console.error('Error writing CSV file:', writeErr);
-    }
-
-    res.json({
-      total_pairs: intersectingPairs.length,
-      pairs: intersectingPairs,
-      csv_file: csvFilePath
-    });
+    res.json({ success: true, count });
   } catch (err) {
-    console.error("Database error:", err);
-    res.status(500).json({ error: "Database error" });
+    console.error("Error in prepare-paths:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

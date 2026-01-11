@@ -545,6 +545,9 @@ export default function MapScene({
             id: "heatmap-layer",
             type: "heatmap",
             source: "heatmap-source",
+            layout: {
+              visibility: "none", // Start hidden, will be shown by useEffect when enabled
+            },
             paint: {
               // Weight based on intensity property
               "heatmap-weight": [
@@ -554,23 +557,21 @@ export default function MapScene({
                 0,
                 0,
                 1,
-                0.2,
+                0.3,
                 5,
-                0.5,
+                0.7,
                 10,
-                0.8,
-                20,
                 1,
               ],
-              // Intensity based on zoom - lower at low zoom for precision
+              // Intensity based on zoom - higher values for better visibility
               "heatmap-intensity": [
                 "interpolate",
                 ["linear"],
                 ["zoom"],
                 2,
-                0.3,
-                4,
                 1,
+                4,
+                1.5,
                 6,
                 2,
                 8,
@@ -594,21 +595,21 @@ export default function MapScene({
                 1,
                 "rgba(244, 67, 54, 1)",
               ],
-              // Radius based on zoom - smaller at low zoom for precision
+              // Radius based on zoom - larger for better visibility
               "heatmap-radius": [
                 "interpolate",
                 ["linear"],
                 ["zoom"],
                 2,
-                8,
-                4,
                 15,
+                4,
+                25,
                 6,
-                30,
+                40,
                 8,
-                50,
+                60,
                 10,
-                70,
+                80,
               ],
               // Opacity - visible at low zoom, fades at high zoom
               "heatmap-opacity": [
@@ -963,9 +964,16 @@ export default function MapScene({
     const heatmapSource = map.current.getSource("heatmap-source");
     if (!heatmapSource) return;
 
+    console.log('🗺️ Heatmap update - Enabled:', heatmapEnabled, '| Data count:', heatmapData?.length);
+
     if (heatmapEnabled && heatmapData) {
       // Data is already interpolated from HeatmapControls, no need to filter
       const filteredData = Array.isArray(heatmapData) ? heatmapData : [];
+
+      console.log('📊 Processing', filteredData.length, 'heatmap cells for display');
+      if (filteredData.length > 0) {
+        console.log('📝 First cell to display:', filteredData[0]);
+      }
 
       // Convert to GeoJSON format
       const geoJsonData = {
@@ -974,7 +982,7 @@ export default function MapScene({
           type: "Feature",
           geometry: {
             type: "Point",
-            coordinates: [cell.lon, cell.lat],
+            coordinates: [cell.lon || cell.cell_lon, cell.lat || cell.cell_lat],
           },
           properties: {
             intensity: cell.intensity || cell.flight_count || 0,
@@ -985,13 +993,27 @@ export default function MapScene({
         })),
       };
 
+      console.log('✅ Setting heatmap GeoJSON with', geoJsonData.features.length, 'features');
+      if (geoJsonData.features.length > 0) {
+        console.log('📍 First feature coordinates:', geoJsonData.features[0].geometry.coordinates);
+        console.log('📊 First feature intensity:', geoJsonData.features[0].properties.intensity);
+      }
+
       heatmapSource.setData(geoJsonData);
 
       // Show heatmap layer
       if (map.current.getLayer("heatmap-layer")) {
         map.current.setLayoutProperty("heatmap-layer", "visibility", "visible");
+        console.log('👁️ Heatmap layer visibility set to visible');
+        
+        // Check if layer is actually visible
+        const visibility = map.current.getLayoutProperty("heatmap-layer", "visibility");
+        console.log('🔍 Heatmap layer visibility check:', visibility);
+      } else {
+        console.warn('⚠️ Heatmap layer not found!');
       }
     } else {
+      console.log('🔇 Hiding heatmap - Enabled:', heatmapEnabled, '| Has data:', !!heatmapData);
       // Hide heatmap layer
       if (map.current.getLayer("heatmap-layer")) {
         map.current.setLayoutProperty("heatmap-layer", "visibility", "none");
