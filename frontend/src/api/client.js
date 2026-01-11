@@ -3,7 +3,10 @@
  * Handles all HTTP requests with automatic fallback to mock data
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || null;
+// In dev, default to local backend if env isn't set.
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3000' : null);
 
 // Track connection status
 let connectionStatus = 'unknown'; // 'connected' | 'offline' | 'loading'
@@ -34,7 +37,14 @@ export async function apiRequest(endpoint, options = {}) {
 
   if (demoMode || !API_BASE_URL) {
     setStatus('offline');
-    return fetchMock(mockPath, signal);
+    // Prefer mock in demo/offline mode, but if it's missing and we *do* have an API URL
+    // (common in dev), fall back to the backend so features like heatmap can still work.
+    try {
+      return await fetchMock(mockPath, signal);
+    } catch (e) {
+      if (!API_BASE_URL) throw e;
+      // fall through to network request
+    }
   }
 
   setStatus('loading');

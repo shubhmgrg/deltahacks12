@@ -19,7 +19,11 @@
     "nodemon": "^3.1.11",
     "socket.io": "^4.6.1"
   },
-  "keywords": ["aviation", "formation-flight", "api"],
+  "keywords": [
+    "aviation",
+    "formation-flight",
+    "api"
+  ],
   "author": "SkySync Team",
   "license": "MIT"
 }
