@@ -55,7 +55,23 @@ export async function apiRequest(endpoint, options = {}) {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      // Try to get error message from response body
+      let errorMessage = `API error: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch (e) {
+        // If response is not JSON, use status text
+        const text = await response.text();
+        if (text) {
+          errorMessage = text.substring(0, 200); // Limit error message length
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
@@ -63,6 +79,11 @@ export async function apiRequest(endpoint, options = {}) {
     return data;
   } catch (error) {
     if (error.name === 'AbortError') {
+      throw error;
+    }
+
+    // If no mock path is available, throw the original error instead of trying mock fallback
+    if (!mockPath) {
       throw error;
     }
 
@@ -77,7 +98,9 @@ export async function apiRequest(endpoint, options = {}) {
  */
 async function fetchMock(mockPath, signal) {
   if (!mockPath) {
-    throw new Error('No mock path provided for offline fallback');
+    // If no mock path is provided and we're in offline mode, 
+    // re-throw the original error instead of a generic mock error
+    throw new Error('This feature is not available offline');
   }
 
   const response = await fetch(`/data/${mockPath}`, { signal });
